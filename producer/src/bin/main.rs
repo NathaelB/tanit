@@ -4,8 +4,10 @@ use fake::faker::company::en::CompanyName;
 use fake::faker::lorem::en::Word;
 use fake::faker::name::en::{FirstName, LastName};
 use fake::Fake;
+use kafka::producer::{Producer, Record, RequiredAcks};
 use rand::Rng;
-use tanit::application::http::{HttpServer, HttpServerConfig};
+use serde::Serialize;
+use std::time::Duration;
 use tanit::domain::models::{Car, Ferri, Passenger};
 use uuid::Uuid;
 
@@ -15,62 +17,68 @@ fn generate_id() -> String {
 
 fn generate_random_ferri() -> Ferri {
     Ferri {
-        id: generate_id(),                               // Random UUID
-        name: CompanyName().fake(), // Random ferry name (company name as placeholder)
-        capacity: rand::thread_rng().gen_range(50..200), // Random capacity between 50 and 300
+        id: generate_id(),
+        name: CompanyName().fake(),
+        capacity: rand::thread_rng().gen_range(50..200),
     }
 }
 
 fn generate_random_car() -> Car {
     let mut rng = rand::thread_rng();
     Car {
-        id: generate_id(),                    // Random UUID
-        licence_plate: LicencePlate().fake(), // Random license plate
-        brand: Word().fake(),                 // Random car brand (word as placeholder)
-        color: Word().fake(),                 // Random car color (word as placeholder)
-        capacity: rng.gen_range(2..5),        // Random capacity between 2 and 8
+        id: generate_id(),
+        licence_plate: LicencePlate().fake(),
+        brand: Word().fake(),
+        color: Word().fake(),
+        capacity: rng.gen_range(2..5),
     }
 }
 
 fn generate_random_passenger(ferri_id: &str, car_id: Option<&str>) -> Passenger {
     let mut rng = rand::thread_rng();
     Passenger {
-        id: generate_id(),                       // Random UUID
-        car_id: car_id.map(|id| id.to_string()), // Optional car ID (Some or None)
-        ferri_id: ferri_id.to_string(),          // Assigned ferry ID
-        firstname: FirstName().fake(),           // Random first name
-        lastname: LastName().fake(),             // Random last name
-        sex: rng.gen_bool(0.5),                  // Random sex (true or false)
+        id: generate_id(),
+        car_id: car_id.map(|id| id.to_string()),
+        ferri_id: ferri_id.to_string(),
+        firstname: FirstName().fake(),
+        lastname: LastName().fake(),
+        sex: rng.gen_bool(0.5),
     }
 }
 
-fn generate_random_data() {
-    // Generate a random ferry
-    let ferri = generate_random_ferri();
-    println!("Ferri: {:#?}", ferri);
+fn send_to_kafka<T: Serialize>(host: &str, topic: &str, data: &T) {
+    let mut producer = Producer::from_hosts(vec![host.to_owned()])
+        .with_ack_timeout(Duration::from_secs(1))
+        .with_required_acks(RequiredAcks::One)
+        .create()
+        .unwrap();
 
-    // Generate a random car
-    let car = generate_random_car();
-    println!("Car: {:#?}", car);
+    let payload = serde_json::to_string(data).unwrap();
 
-    // Generate a random passenger associated with the ferry and optionally the car
-    let passenger_with_car = generate_random_passenger(&ferri.id, Some(&car.id));
-    let passenger_without_car = generate_random_passenger(&ferri.id, None);
-
-    println!("Passenger with car: {:#?}", passenger_with_car);
-    println!("Passenger without car: {:#?}", passenger_without_car);
+    producer
+        .send(&Record::from_value(topic, payload.as_bytes()))
+        .unwrap();
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    println!("Hello, world!");
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Kafka configuration
+    let kafka_host = "broker:9092";
 
-    generate_random_data();
+    // Generate random ferry
+    let ferri = generate_random_ferri();
+    send_to_kafka(kafka_host, "ferries", &ferri);
 
-    let server_config = HttpServerConfig::new("3333".to_string());
-    let http_server = HttpServer::new(server_config).await?;
+    // Generate random car
+    let car = generate_random_car();
+    send_to_kafka(kafka_host, "cars", &car);
 
-    http_server.run().await?;
+    // Generate random passengers
+    let passenger_with_car = generate_random_passenger(&ferri.id, Some(&car.id));
+    let passenger_without_car = generate_random_passenger(&ferri.id, None);
+
+    send_to_kafka(kafka_host, "passengers", &passenger_with_car);
+    send_to_kafka(kafka_host, "passengers", &passenger_without_car);
 
     Ok(())
 }

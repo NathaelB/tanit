@@ -1,11 +1,11 @@
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct Ferri {
     pub id: String,
     pub name: String,
     pub capacity: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct Car {
     pub id: String,
     pub licence_plate: String,
@@ -14,7 +14,7 @@ pub struct Car {
     pub capacity: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct Passenger {
     pub id: String,
     pub car_id: Option<String>,
