@@ -19,12 +19,14 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-1:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   kafka-broker-2:
     image: confluentinc/cp-kafka:7.5.0
@@ -36,13 +38,15 @@ services:
     environment:
       KAFKA_BROKER_ID: 2
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-2:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
-      # On "réutilise" le port 9092 dans le container mais on l'expose sur l'hôte en 9093
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9093"
+
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   akhq:
     image: tchiotludo/akhq:latest
@@ -60,16 +64,15 @@ services:
               properties:
                 bootstrap.servers: "kafka-broker-1:9092,kafka-broker-2:9092"
 
-
   minio:
     image: minio/minio:latest
     container_name: minio
     ports:
-      - "9000:9000"   # Port pour l'API S3
-      - "9002:9001"   # Port pour la console Web
+      - "9000:9000"      # API S3
+      - "9002:9001"      # Console Web
     environment:
       MINIO_ROOT_USER: "minio"
-      MINIO_ROOT_PASSWORD: "password" 
+      MINIO_ROOT_PASSWORD: "password"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
