@@ -1,6 +1,10 @@
 use anyhow::Result;
 use tanit::application::http::{HttpServer, HttpServerConfig};
 
+fn generate_data() {
+    
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Hello, world!");
