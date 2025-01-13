@@ -12,5 +12,33 @@ La dernière partie se portera sur l'utilisation de Trino pour faire du "BigQuer
 ![alt text](image.png)
 ## Service Producer
 - Créer des ferries /ferris
+```json
+{
+id: string,
+name: string,
+capacity: int,
+}
+```
 - Créer des voitures /cars
+```json
+{
+id: string,
+license plate: string,
+brand: string,
+color: string,
+capacity: int,
+passengers: passenger[ ],
+}
+``` 
+
 - Créer des passagers /passengers
+
+```json
+{
+id : string,
+firstname : string,
+lastname : string,
+date_of_birth : date,
+sex : boolean,
+}
+```
