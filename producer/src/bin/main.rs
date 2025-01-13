@@ -17,7 +17,7 @@ fn generate_random_ferri() -> Ferri {
     Ferri {
         id: generate_id(),                               // Random UUID
         name: CompanyName().fake(), // Random ferry name (company name as placeholder)
-        capacity: rand::thread_rng().gen_range(50..255), // Random capacity between 50 and 300
+        capacity: rand::thread_rng().gen_range(50..200), // Random capacity between 50 and 300
     }
 }
 
@@ -28,7 +28,7 @@ fn generate_random_car() -> Car {
         licence_plate: LicencePlate().fake(), // Random license plate
         brand: Word().fake(),                 // Random car brand (word as placeholder)
         color: Word().fake(),                 // Random car color (word as placeholder)
-        capacity: rng.gen_range(2..8),        // Random capacity between 2 and 8
+        capacity: rng.gen_range(2..5),        // Random capacity between 2 and 8
     }
 }
 
@@ -65,9 +65,7 @@ fn generate_random_data() {
 async fn main() -> Result<()> {
     println!("Hello, world!");
 
-    while true {
-        generate_random_data();
-    }
+    generate_random_data();
 
     let server_config = HttpServerConfig::new("3333".to_string());
     let http_server = HttpServer::new(server_config).await?;
