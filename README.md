@@ -9,6 +9,7 @@ Après cette publication, un autre service consommera un topic et s'occupera de 
 
 La dernière partie se portera sur l'utilisation de Trino pour faire du "BigQuery" et l'accrocher sur un dashboard.
 
+![alt text](image.png)
 ## Service Producer
 - Créer des ferries /ferris
 - Créer des voitures /cars
