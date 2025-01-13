@@ -3,6 +3,14 @@ name = "merger"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+path = "src/bin/main.rs"
+name = "server"
+
+[lib]
+path = "src/lib/lib.rs"
+name = "tanit"
+
 [dependencies]
 anyhow = "1.0.95"
 futures = "0.3.31"
