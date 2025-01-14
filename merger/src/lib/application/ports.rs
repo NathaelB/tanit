@@ -2,6 +2,18 @@ use std::{fmt::Debug, future::Future};
 
 use serde::de::DeserializeOwned;
 
+#[derive(Clone, Debug)]
+pub enum Offset {
+    Beginning,
+    Latests,
+    Offset(i64),
+}
+
+#[derive(Clone, Debug)]
+pub struct SubscriptionOptions {
+    pub offset: Offset,
+}
+
 pub trait MessagingPort: Clone + Send + Sync + 'static {
     fn publish_message(
         &self,
@@ -13,6 +25,7 @@ pub trait MessagingPort: Clone + Send + Sync + 'static {
         &self,
         topic: &str,
         group_id: &str,
+        options: SubscriptionOptions,
         handler: F,
     ) -> impl Future<Output = anyhow::Result<()>> + Send
     where
