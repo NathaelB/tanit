@@ -1,7 +1,8 @@
-version: '3.8'
+version: '3'
+
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:latest
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -9,55 +10,47 @@ services:
     ports:
       - "2181:2181"
 
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    hostname: schema-registry
+    depends_on:
+      - kafka1
+      - kafka2
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
+      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
+      SCHEMA_REGISTRY_DEBUG: 'true'
+
   kafka1:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka1
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka1
+    ports:
+      - "19092:19092"
     depends_on:
       - zookeeper
-    ports:
-      - "8097:8097"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8097,INTERNAL://kafka1:9092
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      # KAFKA_BROKER_ID: 1
-      # KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      # KAFKA_LISTENERS: PLAINTEXT://localhost:9092
-      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
-
-      # KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-      # KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
-      # KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
-      # KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,PLAINTEXT_INTERNAL://localhost:19092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
   kafka2:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka2
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka2
+    ports:
+      - "29092:29092"
     depends_on:
       - zookeeper
-    ports:
-      - "8098:8098"
     environment:
       KAFKA_BROKER_ID: 2
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8098,INTERNAL://kafka2:9092
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      # KAFKA_BROKER_ID: 2
-      # KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      # KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
-
-      # KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-      # KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
-      # KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
-
-      # KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
   akhq:
     image: tchiotludo/akhq:latest
     container_name: akhq
@@ -70,22 +63,8 @@ services:
       AKHQ_CONFIGURATION: |
         akhq:
           connections:
-            dev-cluster:
+            docker-kafka-server:
               properties:
-                bootstrap.servers: "kafka1:9092,kafka2:9092"
-
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    ports:
-      - "9000:9000"      # API S3
-      - "9002:9001"      # Console Web
-    environment:
-      MINIO_ROOT_USER: "minio"
-      MINIO_ROOT_PASSWORD: "password"
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-
-volumes:
-  minio_data:
+                bootstrap.servers: "kafka2:9092"
+              schema-registry:
+                url: "http://schema-registry:8081"
