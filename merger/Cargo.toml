@@ -13,6 +13,7 @@ name = "tanit"
 
 [dependencies]
 anyhow = "1.0.95"
+axum = "0.8.1"
 futures = "0.3.31"
 rdkafka = "0.37.0"
 serde = { version = "1.0.217", features = ["derive"] }
