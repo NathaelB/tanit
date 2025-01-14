@@ -55,8 +55,6 @@ fn send_to_kafka<T: Serialize>(host: &str, topic: &str, data: &T) {
 
     let payload = serde_json::to_string(data).unwrap();
 
-    println!("Payload to send: {}", payload);
-
     producer
         .send(&Record::from_value(topic, payload.as_bytes()))
         .unwrap();
@@ -65,7 +63,7 @@ fn send_to_kafka<T: Serialize>(host: &str, topic: &str, data: &T) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Kafka configuration
-    let kafka_host = "localhost:8097";
+    let kafka_host = "localhost:19092";
 
     for _i in 0..10 {
         // Generate random ferry
