@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use tanit::infrastructure::messaging::kafka::Kafka;
 
 use anyhow::Result;
 use rdkafka::{
@@ -28,58 +29,60 @@ struct CreateFerryEvent {
 async fn main() -> Result<()> {
     let ferris: Arc<Mutex<HashMap<String, Ferry>>> = Arc::new(Mutex::new(HashMap::new()));
 
-    let consumer: StreamConsumer = ClientConfig::new()
-        .set("group.id", "example_group")
-        .set("bootstrap.servers", "localhost:9092")
-        .set("enable.auto.commit", "true")
-        .set("auto.offset.reset", "earliest")
-        .create()?;
+    let kafka = Kafka::new("localhost:9092".to_string(), "example_group".to_string())?;
 
-    consumer.subscribe(&["test"])?;
+    // let consumer: StreamConsumer = ClientConfig::new()
+    //     .set("group.id", "example_group")
+    //     .set("bootstrap.servers", "localhost:9092")
+    //     .set("enable.auto.commit", "true")
+    //     .set("auto.offset.reset", "earliest")
+    //     .create()?;
 
-    // reset the offset to the beginning
-    let mut hash_map = HashMap::new();
-    hash_map.insert(("test".to_string(), 0), Offset::Beginning);
-    let t = TopicPartitionList::from_topic_map(&hash_map).unwrap();
+    // consumer.subscribe(&["test"])?;
 
-    consumer.assign(&t)?;
+    // // reset the offset to the beginning
+    // let mut hash_map = HashMap::new();
+    // hash_map.insert(("test".to_string(), 0), Offset::Beginning);
+    // let t = TopicPartitionList::from_topic_map(&hash_map).unwrap();
 
-    let ferries_clone = Arc::clone(&ferris);
+    // consumer.assign(&t)?;
 
-    tokio::spawn(async move {
-        println!("Starting consumer loop");
-        let mut message_stream = consumer.stream();
+    // let ferries_clone = Arc::clone(&ferris);
 
-        while let Some(result) = message_stream.next().await {
-            match result {
-                Ok(message) => {
-                    if let Some(payload) = message.payload_view::<str>() {
-                        match payload {
-                            Ok(text) => {
-                                println!("Received message: {}", text);
-                                let event: CreateFerryEvent = serde_json::from_str(text).unwrap();
+    // tokio::spawn(async move {
+    //     println!("Starting consumer loop");
+    //     let mut message_stream = consumer.stream();
 
-                                let ferry = Ferry {
-                                    id: event.id,
-                                    capacity: event.capacity,
-                                };
+    //     while let Some(result) = message_stream.next().await {
+    //         match result {
+    //             Ok(message) => {
+    //                 if let Some(payload) = message.payload_view::<str>() {
+    //                     match payload {
+    //                         Ok(text) => {
+    //                             println!("Received message: {}", text);
+    //                             let event: CreateFerryEvent = serde_json::from_str(text).unwrap();
 
-                                let mut ferris = ferries_clone.lock().unwrap();
-                                ferris.insert(ferry.id.clone(), ferry);
-                            }
-                            Err(e) => eprintln!("Error while reading message: {}", e),
-                        }
-                    }
-                }
-                Err(e) => eprintln!("Kafka error: {}", e),
-            }
-        }
-    });
+    //                             let ferry = Ferry {
+    //                                 id: event.id,
+    //                                 capacity: event.capacity,
+    //                             };
 
-    tokio::signal::ctrl_c().await?;
+    //                             let mut ferris = ferries_clone.lock().unwrap();
+    //                             ferris.insert(ferry.id.clone(), ferry);
+    //                         }
+    //                         Err(e) => eprintln!("Error while reading message: {}", e),
+    //                     }
+    //                 }
+    //             }
+    //             Err(e) => eprintln!("Kafka error: {}", e),
+    //         }
+    //     }
+    // });
 
-    let ferris = ferris.lock().unwrap();
-    println!("Ferries: {:?}", ferris);
+    // tokio::signal::ctrl_c().await?;
+
+    // let ferris = ferris.lock().unwrap();
+    // println!("Ferries: {:?}", ferris);
 
     Ok(())
 }
