@@ -55,6 +55,8 @@ fn send_to_kafka<T: Serialize>(host: &str, topic: &str, data: &T) {
 
     let payload = serde_json::to_string(data).unwrap();
 
+    println!("Payload to send: {}", payload);
+
     producer
         .send(&Record::from_value(topic, payload.as_bytes()))
         .unwrap();
@@ -82,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        for _k in 0..50 {
+        for _k in 0..10 {
             let passenger_without_car = generate_random_passenger(&ferri.id, None);
             send_to_kafka(kafka_host, "passengers", &passenger_without_car);
         }   
