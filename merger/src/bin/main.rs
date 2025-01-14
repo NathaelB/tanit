@@ -3,27 +3,27 @@ use std::{
     sync::{Arc, Mutex},
 };
 use tanit::{
-    application::{http::{HttpServer, HttpServerConfig}, ports::{MessagingPort, SubscriptionOptions}},
-    infrastructure::messaging::kafka::Kafka,
+    application::{
+        http::{HttpServer, HttpServerConfig},
+        ports::{MessagingPort, SubscriptionOptions},
+    },
+    domain::ferri::{
+        models::{CreateFerryEvent, Ferri},
+        ports::FerriService,
+        service::FerriServiceImpl,
+    },
+    infrastructure::{
+        messaging::kafka::Kafka, repositories::in_memory_ferri_repository::InMemoryFerriRepository,
+    },
 };
 
 use anyhow::Result;
-use serde::Deserialize;
+use tracing::info;
 
-#[derive(Debug, Clone)]
-struct Ferry {
-    id: String,
-    #[allow(unused)]
-    capacity: usize,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct CreateFerryEvent {
-    id: String,
-    capacity: usize,
-}
-
-pub async fn start_subscriptions(messaging: Arc<Kafka>) -> Result<()> {
+pub async fn start_subscriptions<F>(messaging: Arc<Kafka>, ferri_service: Arc<F>) -> Result<()>
+where
+    F: FerriService,
+{
     let messaging = Arc::clone(&messaging);
     let options = SubscriptionOptions {
         offset: tanit::application::ports::Offset::Beginning,
@@ -31,10 +31,17 @@ pub async fn start_subscriptions(messaging: Arc<Kafka>) -> Result<()> {
 
     messaging
         .subscribe("ferris", "merger", options, {
-            move |e: CreateFerryEvent| {
-                println!("Received ferry: {:?}", e);
+            let ferri_service = Arc::clone(&ferri_service);
 
-                async move { Ok(()) }
+            move |e: CreateFerryEvent| {
+                let ferri_service = Arc::clone(&ferri_service);
+
+                info!("Received ferry: {:?}", e);
+
+                async move {
+                    ferri_service.create(Ferri::from_event(e)).await?;
+                    Ok(())
+                }
             }
         })
         .await?;
@@ -44,18 +51,22 @@ pub async fn start_subscriptions(messaging: Arc<Kafka>) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let ferris: Arc<Mutex<HashMap<String, Ferry>>> = Arc::new(Mutex::new(HashMap::new()));
+    dotenv::dotenv().ok();
+    tracing_subscriber::fmt::init();
 
     let kafka = Arc::new(Kafka::new(
-        "localhost:9092".to_string(),
+        "localhost:8098,localhost:8097".to_string(),
         "example_group".to_string(),
     )?);
 
-    start_subscriptions(Arc::clone(&kafka)).await?;
+    let ferri_repository = InMemoryFerriRepository::new();
+    let ferri_service = Arc::new(FerriServiceImpl::new(ferri_repository));
+
+    start_subscriptions(Arc::clone(&kafka), Arc::clone(&ferri_service)).await?;
 
     let server_config = HttpServerConfig::new("3333".to_string());
 
-    let http_server = HttpServer::new(server_config).await?;
+    let http_server = HttpServer::new(server_config, Arc::clone(&ferri_service)).await?;
 
     http_server.run().await?;
 
