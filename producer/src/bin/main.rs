@@ -65,20 +65,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Kafka configuration
     let kafka_host = "broker:9092";
 
-    // Generate random ferry
-    let ferri = generate_random_ferri();
-    send_to_kafka(kafka_host, "ferries", &ferri);
+    for _i in 0..10 {
+        // Generate random ferry
+        let ferri = generate_random_ferri();
+        send_to_kafka(kafka_host, "ferries", &ferri);
+        
+        for _j in 0..30 {
+            // Generate random car
+            let car = generate_random_car();
+            send_to_kafka(kafka_host, "cars", &car);
+            
+            for _k in 0..5 {
+                // Generate random passengers
+                let passenger_with_car = generate_random_passenger(&ferri.id, Some(&car.id));
+                send_to_kafka(kafka_host, "passengers", &passenger_with_car);
+            }
+        }
 
-    // Generate random car
-    let car = generate_random_car();
-    send_to_kafka(kafka_host, "cars", &car);
-
-    // Generate random passengers
-    let passenger_with_car = generate_random_passenger(&ferri.id, Some(&car.id));
-    let passenger_without_car = generate_random_passenger(&ferri.id, None);
-
-    send_to_kafka(kafka_host, "passengers", &passenger_with_car);
-    send_to_kafka(kafka_host, "passengers", &passenger_without_car);
+        for _k in 0..50 {
+            let passenger_without_car = generate_random_passenger(&ferri.id, None);
+            send_to_kafka(kafka_host, "passengers", &passenger_without_car);
+        }   
+    }
 
     Ok(())
 }
