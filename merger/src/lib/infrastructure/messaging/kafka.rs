@@ -10,6 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 
 #[derive(Clone)]
 pub struct Kafka {
+    #[allow(unused)]
     producer: Arc<FutureProducer>,
     consumer: Arc<StreamConsumer>,
 }
@@ -94,6 +95,6 @@ impl MessagingPort for Kafka {
             }
         });
 
-        todo!()
+        Ok(())
     }
 }

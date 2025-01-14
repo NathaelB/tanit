@@ -23,11 +23,10 @@ capacity: int,
 ```json
 {
 id: string,
-license plate: string,
+license_plate: string,
 brand: string,
 color: string,
 capacity: int,
-passengers: passenger[ ],
 }
 ``` 
 
@@ -35,10 +34,11 @@ passengers: passenger[ ],
 
 ```json
 {
-id : string,
-firstname : string,
-lastname : string,
-date_of_birth : date,
+id: string,
+firstname: string,
+lastname: string,
+ferry_id: string,
+car_id: string,
 sex : boolean,
 }
 ```
