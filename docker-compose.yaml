@@ -9,51 +9,61 @@ services:
     ports:
       - "2181:2181"
 
-  kafka-broker-1:
+  kafka1:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka-broker-1
+    container_name: kafka1
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
+      - "8097:8097"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-1:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8097,INTERNAL://kafka1:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # KAFKA_BROKER_ID: 1
+      # KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # KAFKA_LISTENERS: PLAINTEXT://localhost:9092
+      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
 
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      # KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      # KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      # KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
-  kafka-broker-2:
+  kafka2:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka-broker-2
+    container_name: kafka2
     depends_on:
       - zookeeper
     ports:
-      - "9093:9092"
+      - "8098:8098"
     environment:
       KAFKA_BROKER_ID: 2
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-2:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:8098,INTERNAL://kafka2:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # KAFKA_BROKER_ID: 2
+      # KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      # KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT"
 
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      # KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      # KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      # KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
 
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   akhq:
     image: tchiotludo/akhq:latest
     container_name: akhq
     depends_on:
-      - kafka-broker-1
-      - kafka-broker-2
+      - kafka1
+      - kafka2
     ports:
       - "8080:8080"
     environment:
@@ -62,7 +72,7 @@ services:
           connections:
             dev-cluster:
               properties:
-                bootstrap.servers: "kafka-broker-1:9092,kafka-broker-2:9092"
+                bootstrap.servers: "kafka1:9092,kafka2:9092"
 
   minio:
     image: minio/minio:latest
