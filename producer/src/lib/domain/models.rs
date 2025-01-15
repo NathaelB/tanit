@@ -1,5 +1,5 @@
 #[derive(Debug, serde::Serialize)]
-pub struct Ferri {
+pub struct Ferry {
     pub id: String,
     pub name: String,
     pub capacity: u8,
@@ -18,7 +18,7 @@ pub struct Car {
 pub struct Passenger {
     pub id: String,
     pub car_id: Option<String>,
-    pub ferri_id: String,
+    pub ferry_id: String,
     pub firstname: String,
     pub lastname: String,
     pub sex: bool,
