@@ -4,12 +4,13 @@ use fake::faker::company::en::CompanyName;
 use fake::faker::lorem::en::Word;
 use fake::faker::name::en::{FirstName, LastName};
 use fake::Fake;
-use kafka::producer::{Producer, Record, RequiredAcks};
 use rand::Rng;
 use serde::Serialize;
-use std::time::Duration;
 use tanit::domain::models::{Car, Ferri, Passenger};
 use uuid::Uuid;
+
+use tanit::application::ports::MessagingPort;
+use tanit::infrastructure::messaging::kafka::Kafka;
 
 fn generate_id() -> String {
     Uuid::new_v4().to_string()
@@ -46,18 +47,30 @@ fn generate_random_passenger(ferri_id: &str, car_id: Option<&str>) -> Passenger 
     }
 }
 
-fn send_to_kafka<T: Serialize>(host: &str, topic: &str, data: &T) {
-    let mut producer = Producer::from_hosts(vec![host.to_owned()])
-        .with_ack_timeout(Duration::from_secs(1))
-        .with_required_acks(RequiredAcks::One)
-        .create()
-        .unwrap();
+fn send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
+    // let mut producer = Producer::from_hosts(vec![host.to_owned()])
+    //     .with_ack_timeout(Duration::from_secs(1))
+    //     .with_required_acks(RequiredAcks::One)
+    //     .create()
+    //     .unwrap();
 
-    let payload = serde_json::to_string(data).unwrap();
+    // let payload = serde_json::to_string(data).unwrap();
 
-    producer
-        .send(&Record::from_value(topic, payload.as_bytes()))
-        .unwrap();
+    // producer
+    //     .send(&Record::from_value(topic, payload.as_bytes()))
+    //     .unwrap();
+
+    // Create a Kafka instance
+    let kafka = Kafka::new(host.to_string(), "default-group".to_string())
+        .expect("Failed to initialize Kafka");
+
+    let payload = serde_json::to_string(data).expect("Failed to serialize data");
+
+    tokio::spawn(async move {
+        if let Err(e) = kafka.publish_message(topic, payload).await {
+            eprintln!("Error sending message to Kafka: {:?}", e);
+        }
+    });
 }
 
 #[tokio::main]
@@ -68,24 +81,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for _i in 0..10 {
         // Generate random ferry
         let ferri = generate_random_ferri();
-        send_to_kafka(kafka_host, "ferries", &ferri);
-        
+        send_to_kafka(kafka_host, "ferries".to_string(), &ferri);
+
         for _j in 0..30 {
             // Generate random car
             let car = generate_random_car();
-            send_to_kafka(kafka_host, "cars", &car);
-            
+            send_to_kafka(kafka_host, "cars".to_string(), &car);
+
             for _k in 0..5 {
                 // Generate random passengers
                 let passenger_with_car = generate_random_passenger(&ferri.id, Some(&car.id));
-                send_to_kafka(kafka_host, "passengers", &passenger_with_car);
+                send_to_kafka(kafka_host, "passengers".to_string(), &passenger_with_car);
             }
         }
 
         for _k in 0..10 {
             let passenger_without_car = generate_random_passenger(&ferri.id, None);
-            send_to_kafka(kafka_host, "passengers", &passenger_without_car);
-        }   
+            send_to_kafka(kafka_host, "passengers".to_string(), &passenger_without_car);
+        }
     }
 
     Ok(())
