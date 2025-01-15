@@ -2,8 +2,9 @@
 pub struct Ferry {
     pub id: String,
     pub name: String,
-    pub capacity: u8,
+    pub capacity: i32,
 }
+
 
 #[derive(Debug, serde::Serialize)]
 pub struct Car {
@@ -11,7 +12,7 @@ pub struct Car {
     pub licence_plate: String,
     pub brand: String,
     pub color: String,
-    pub capacity: u8,
+    pub capacity: i32,
 }
 
 #[derive(Debug, serde::Serialize)]

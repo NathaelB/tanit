@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Result;
 use fake::faker::automotive::fr_fr::LicencePlate;
@@ -7,41 +7,34 @@ use fake::faker::lorem::en::Word;
 use fake::faker::name::en::{FirstName, LastName};
 use fake::Fake;
 use rand::Rng;
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use rdkafka::util::Timeout;
-use rdkafka::ClientConfig;
-use schema_registry_converter::async_impl::avro::AvroEncoder;
 use serde::Serialize;
 use tanit::application::http::{HttpServer, HttpServerConfig};
 use tanit::application::messaging::{create_car_schema, create_ferri_schema, create_passernger_schema};
 use tanit::domain::models::{Car, Ferry, Passenger};
+use tanit::domain::ports::FerryService;
+use tanit::domain::services::FerryServiceImpl;
 use uuid::Uuid;
-
-use apache_avro::{types::Value, Schema, Writer};
-use schema_registry_converter::async_impl::schema_registry::{post_schema, SrSettings};
-use schema_registry_converter::schema_registry_common::{
-    SchemaType, SubjectNameStrategy, SuppliedSchema,
-};
 
 use tanit::application::ports::MessagingPort;
 use tanit::infrastructure::messaging::kafka::Kafka;
 
-fn generate_id() -> String {
+
+fn _generate_id() -> String {
     Uuid::new_v4().to_string()
 }
 
-fn generate_random_ferry() -> Ferry {
+fn _generate_random_ferry() -> Ferry {
     Ferry {
-        id: generate_id(),
+        id: _generate_id(),
         name: CompanyName().fake(),
         capacity: rand::thread_rng().gen_range(50..200),
     }
 }
 
-fn generate_random_car() -> Car {
+fn _generate_random_car() -> Car {
     let mut rng = rand::thread_rng();
     Car {
-        id: generate_id(),
+        id: _generate_id(),
         licence_plate: LicencePlate().fake(),
         brand: Word().fake(),
         color: Word().fake(),
@@ -49,10 +42,11 @@ fn generate_random_car() -> Car {
     }
 }
 
-fn generate_random_passenger(ferry_id: &str, car_id: Option<&str>) -> Passenger {
+
+fn _generate_random_passenger(ferry_id: &str, car_id: Option<&str>) -> Passenger {
     let mut rng = rand::thread_rng();
     Passenger {
-        id: generate_id(),
+        id: _generate_id(),
         car_id: car_id.map(|id| id.to_string()),
         ferry_id: ferry_id.to_string(),
         firstname: FirstName().fake(),
@@ -61,20 +55,8 @@ fn generate_random_passenger(ferry_id: &str, car_id: Option<&str>) -> Passenger 
     }
 }
 
-fn send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
-    // let mut producer = Producer::from_hosts(vec![host.to_owned()])
-    //     .with_ack_timeout(Duration::from_secs(1))
-    //     .with_required_acks(RequiredAcks::One)
-    //     .create()
-    //     .unwrap();
 
-    // let payload = serde_json::to_string(data).unwrap();
-
-    // producer
-    //     .send(&Record::from_value(topic, payload.as_bytes()))
-    //     .unwrap();
-
-    // Create a Kafka instance
+fn _send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
     let kafka = Kafka::new(host.to_string(), "default-group".to_string())
         .expect("Failed to initialize Kafka");
 
@@ -90,6 +72,12 @@ fn send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Hello, world!");
+
+    let _kafka = Kafka::new(String::from("localhost:19092"), String::from("default-group"))
+        .expect("Failed to initialize Kafka");
+
+    let ferry_service = Arc::new(FerryServiceImpl::default());
+
 
 
     create_car_schema().await?;
