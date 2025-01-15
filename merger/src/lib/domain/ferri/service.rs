@@ -26,7 +26,7 @@ impl<F> FerriService for FerriServiceImpl<F>
 where
     F: FerriRepository,
 {
-    fn create(&self, ferri: Ferri) -> impl Future<Output = anyhow::Result<()>> + Send {
+    fn add_ferry(&self, ferri: Ferri) -> impl Future<Output = anyhow::Result<()>> + Send {
         self.ferri_repository.save(ferri)
     }
 }

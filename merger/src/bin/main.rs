@@ -39,12 +39,39 @@ where
                 info!("Received ferry: {:?}", e);
 
                 async move {
-                    ferri_service.create(Ferri::from_event(e)).await?;
+                    ferri_service.add_ferry(Ferri::from_event(e)).await?;
                     Ok(())
                 }
             }
         })
         .await?;
+    
+        messaging
+        .subscribe("cars", "merger", options, {
+            let ferri_service = Arc::clone(&ferri_service);
+            move |c: CreateCarEvent| {
+                info!("Received car: {:?}", c);
+                async move {
+                    ferri_service.add_car(Car::from_event(c)).await?;
+                    Ok(())
+                }
+            }
+        })
+        .await?;
+
+    messaging
+        .subscribe("passenger", "merger", options, {
+            let ferri_service = Arc::clone(&ferri_service);
+            move |p: CreatePassengerEvent| {
+                info!("Received passenger: {:?}", p);
+                async move {
+                    ferri_service.add_passenger(Passenger::from_event(p)).await?;
+                    Ok(())
+                }
+            }
+        })
+        .await?;
+
 
     Ok(())
 }
