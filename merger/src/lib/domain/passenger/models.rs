@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 #[derive(Debug, Clone)]
 pub struct Passenger {
     pub id: String,
