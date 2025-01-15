@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Ferri {
     pub id: String,
     pub name: String,
@@ -9,9 +9,9 @@ pub struct Ferri {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct CreateFerryEvent {
-    id: String,
-    name: String,
-    capacity: i32,
+    pub id: String,
+    pub name: String,
+    pub capacity: i32,
 }
 
 impl Ferri {
