@@ -1,22 +1,24 @@
+use anyhow::Result;
 use datafusion::{
     arrow::{
         array::{Int32Array, ListArray, ListBuilder, RecordBatch, StringArray, StringBuilder},
         datatypes::{DataType, Field, Schema},
-    }, logical_expr::test, prelude::SessionContext
+    },
+    prelude::SessionContext,
 };
 use std::sync::Arc;
+use tanit::{
+    application::ports::{MessagingPort, SubscriptionOptions},
+    infrastructure::messaging::kafka::Kafka,
+};
+use tokio::sync::RwLock;
 
 use datafusion::dataframe::DataFrameWriteOptions;
-use futures::StreamExt;
 
-use rdkafka::{
-    consumer::{Consumer, StreamConsumer},
-    ClientConfig, Message,
-};
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
-struct FerryEvent {
+#[derive(Deserialize, Debug, Clone)]
+pub struct FerryEvent {
     ferry_id: String,        // ID du ferry
     passengers: Vec<String>, // Liste des passagers
     cars: Vec<String>,       // Liste des voitures
@@ -24,101 +26,35 @@ struct FerryEvent {
 }
 
 #[tokio::main]
-async fn main() {
-    let consumer: StreamConsumer = ClientConfig::new()
-        .set("group.id", "test-group")
-        .set("bootstrap.servers", "localhost:9092")
-        .create()
-        .unwrap();
-
-    consumer.subscribe(&["test"]).unwrap();
-
+async fn main() -> Result<()> {
     let schema = Arc::new(Schema::new(vec![
-        Field::new("ferry_id", DataType::Utf8, false), // ID du ferry
+        Field::new("ferry_id", DataType::Utf8, false),
         Field::new(
             "passengers",
             DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
             false,
-        ), // Liste de passagers
+        ),
         Field::new(
             "cars",
             DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
             false,
-        ), // Liste de voitures
-        Field::new("capacity", DataType::Int32, false), // Capacité du ferry
+        ),
+        Field::new("capacity", DataType::Int32, false),
     ]));
-    let mut ctx = SessionContext::new();
+    let ctx = SessionContext::new();
 
-    let mut events: Vec<FerryEvent> = Vec::new();
-    println!("Consumer loop started");
-    tokio::spawn(async move {
-        while let Some(result) = consumer.stream().next().await {
-            match result {
-                Ok(message) => {
-                    if let Some(payload) = message.payload_view::<str>() {
-                        match payload {
-                            Ok(text) => {
-                                let event: FerryEvent = serde_json::from_str(text)
-                                    .expect("Impossible de désérialiser le message Kafka");
+    let events: Arc<RwLock<Vec<FerryEvent>>> = Arc::new(RwLock::new(Vec::new()));
 
-                                println!("Received message: {}", text);
-                                events.push(event);
+    let kafka = Arc::new(
+        Kafka::new(
+            "localhost:8098,localhost:8097".to_string(),
+            "example_group".to_string(),
+        )
+        .unwrap(),
+    );
 
-                                if events.len() >= 10 {
-                                    let ferry_ids: Vec<String> =
-                                        events.iter().map(|e| e.ferry_id.clone()).collect();
-                                    let capacities: Vec<i32> =
-                                        events.iter().map(|e| e.capacity).collect();
-                                    let passengers: Vec<Vec<String>> =
-                                        events.iter().map(|e| e.passengers.clone()).collect();
-                                    let cars: Vec<Vec<String>> =
-                                        events.iter().map(|e| e.cars.clone()).collect();
-                                    let ferry_id_array = StringArray::from(ferry_ids);
-                                    let capacity_array = Int32Array::from(capacities);
-                                    let passengers_array = ListArray::from(create_list_array(passengers));
-                                    let cars_array = ListArray::from(create_list_array(cars));
-                        
-                                    // creer dataframe
-                                    let batch = RecordBatch::try_new(
-                                        schema.clone(),
-                                        vec![Arc::new(ferry_id_array), Arc::new(capacity_array),Arc::new(passengers_array), Arc::new(cars_array),],
-                                    )
-                                    .unwrap();
-
-                                    ctx.register_batch("ferry_events", batch);
-                                    let df = ctx.table("ferry_events").await.unwrap();
-
-                                    df.clone().show().await.unwrap();
-                                    let parquet_path = "./output/ferry_events.parquet";
-
-                                    // parquer le dataframe
-                                    df.write_parquet(
-                                        parquet_path,
-                                        DataFrameWriteOptions::new(),
-                                        None,
-                                    )
-                                    .await
-                                    .unwrap();
-
-                                    events.clear();
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("Error while deserializing message payload: {:?}", e);
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error while receiving from Kafka: {:?}", e);
-                }
-            }
-        }
-    });
-
-    tokio::signal::ctrl_c().await.unwrap();
-
-    println!("Hello, world!");
+    start_subscriptions(Arc::clone(&kafka), schema, events, Arc::new(ctx)).await?;
+    Ok(())
 }
 
 fn create_list_array(data: Vec<Vec<String>>) -> ListArray {
@@ -131,4 +67,85 @@ fn create_list_array(data: Vec<Vec<String>>) -> ListArray {
         builder.append(true);
     }
     builder.finish()
+}
+
+pub async fn start_subscriptions(
+    messaging: Arc<Kafka>,
+    schema: Arc<Schema>,
+    events: Arc<RwLock<Vec<FerryEvent>>>,
+    ctx: Arc<SessionContext>,
+) -> Result<()> {
+    let messaging = Arc::clone(&messaging);
+    let options = SubscriptionOptions {
+        offset: tanit::application::ports::Offset::Beginning,
+    };
+
+    messaging
+        .subscribe("ferris", "saver", options, {
+            let s = Arc::clone(&schema);
+            let ctx = Arc::clone(&ctx);
+            let events = Arc::clone(&events);
+
+            move |e: FerryEvent| {
+                let es1 = events.clone();
+                let schema = s.clone();
+                let ctx = ctx.clone();
+
+                async move {
+                    let mut events_guard = es1.write().await;
+                    events_guard.push(e.clone());
+
+                    if events_guard.len() >= 10 {
+                        let result: Result<(), anyhow::Error> = async {
+                            let ferry_ids: Vec<String> =
+                                events_guard.iter().map(|e| e.ferry_id.clone()).collect();
+                            let capacities: Vec<i32> =
+                                events_guard.iter().map(|e| e.capacity).collect();
+                            let passengers: Vec<Vec<String>> =
+                                events_guard.iter().map(|e| e.passengers.clone()).collect();
+                            let cars: Vec<Vec<String>> =
+                                events_guard.iter().map(|e| e.cars.clone()).collect();
+                            let ferry_id_array = StringArray::from(ferry_ids);
+                            let capacity_array = Int32Array::from(capacities);
+                            let passengers_array = ListArray::from(create_list_array(passengers));
+                            let cars_array = ListArray::from(create_list_array(cars));
+                            let batch = RecordBatch::try_new(
+                                schema.clone(),
+                                vec![
+                                    Arc::new(ferry_id_array),
+                                    Arc::new(capacity_array),
+                                    Arc::new(passengers_array),
+                                    Arc::new(cars_array),
+                                ],
+                            )?;
+
+                            ctx.register_batch("ferry_events", batch)?;
+                            let df = ctx.table("ferry_events").await?;
+
+                            df.clone().show().await?;
+                            let parquet_path = "./output/ferry_events.parquet";
+
+                            // parquer le dataframe
+                            df.write_parquet(parquet_path, DataFrameWriteOptions::new(), None)
+                                .await?;
+                            Ok(())
+                            // events_guard.push(e.clone());
+                        }
+                        .await;
+                        match result {
+                            Ok(_) => {
+                                events_guard.clear();
+                            }
+                            Err(e) => {
+                                eprintln!("Error: {:?}", e);
+                            }
+                        };
+                    };
+                    Ok(())
+                }
+            }
+        })
+        .await?;
+
+    Ok(())
 }
