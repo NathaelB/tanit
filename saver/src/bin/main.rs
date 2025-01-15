@@ -2,13 +2,11 @@ use datafusion::{
     arrow::{
         array::{Int32Array, ListArray, ListBuilder, RecordBatch, StringArray, StringBuilder},
         datatypes::{DataType, Field, Schema},
-    },
-    prelude::SessionContext,
+    }, logical_expr::test, prelude::SessionContext
 };
 use std::sync::Arc;
 
 use datafusion::dataframe::DataFrameWriteOptions;
-
 use futures::StreamExt;
 
 use rdkafka::{
