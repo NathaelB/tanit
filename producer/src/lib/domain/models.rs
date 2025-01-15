@@ -5,7 +5,6 @@ pub struct Ferry {
     pub capacity: i32,
 }
 
-
 #[derive(Debug, serde::Serialize)]
 pub struct Car {
     pub id: String,
