@@ -49,6 +49,10 @@ async fn main() -> Result<()> {
         )
         .await?;
 
+    let dataset_json = serde_json::to_string_pretty(&data)?;
+
+    print!("{}", dataset_json);
+
     create_car_schema().await?;
     create_ferri_schema().await?;
     create_passernger_schema().await?;

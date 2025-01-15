@@ -6,9 +6,6 @@ use fake::faker::name::fr_fr::{FirstName, LastName};
 use fake::{faker::company::fr_fr::CompanyName, Fake};
 use rand::Rng;
 
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
-
 use super::{models::Car, ports::CarService};
 use super::{models::DataSet, ports::DataSetService};
 use super::{models::Ferry, ports::FerryService};
