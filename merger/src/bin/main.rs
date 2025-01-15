@@ -5,13 +5,13 @@ use tanit::{
         ports::{MessagingPort, Offset, SubscriptionOptions},
     },
     domain::{
-        car::models::CreateCarEvent,
+        car::{models::CreateCarEvent, ports::CarService},
         ferri::{
             models::{CreateFerryEvent, Ferri},
             ports::FerriService,
             service::FerriServiceImpl,
         },
-        passenger::models::CreatePassengerEvent,
+        passenger::{models::CreatePassengerEvent, ports::PassengerService},
     },
     infrastructure::{
         messaging::kafka::Kafka, repositories::in_memory_ferri_repository::InMemoryFerriRepository,
@@ -21,9 +21,16 @@ use tanit::{
 use anyhow::Result;
 use tracing::info;
 
-pub async fn start_subscriptions<F>(messaging: Arc<Kafka>, ferri_service: Arc<F>) -> Result<()>
+pub async fn start_subscriptions<F, C, P>(
+    messaging: Arc<Kafka>,
+    ferri_service: Arc<F>,
+    car_service: Arc<C>,
+    passenger_service: Arc<P>,
+) -> Result<()>
 where
     F: FerriService,
+    C: CarService,
+    P: PassengerService,
 {
     let messaging = Arc::clone(&messaging);
     let options = SubscriptionOptions {
@@ -95,7 +102,8 @@ async fn main() -> Result<()> {
     let ferri_repository = InMemoryFerriRepository::new();
     let ferri_service = Arc::new(FerriServiceImpl::new(ferri_repository));
 
-    start_subscriptions(Arc::clone(&kafka), Arc::clone(&ferri_service)).await?;
+
+    //start_subscriptions(Arc::clone(&kafka), Arc::clone(&ferri_service)).await?;
 
     let server_config = HttpServerConfig::new("3333".to_string());
 
