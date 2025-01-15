@@ -2,9 +2,17 @@ use std::sync::Arc;
 use tanit::{
     application::{
         http::{HttpServer, HttpServerConfig},
-        ports::{MessagingPort, SubscriptionOptions},
+        ports::{MessagingPort, Offset, SubscriptionOptions},
     },
-    domain::ferri::{models::CreateFerryEvent, ports::FerriService, service::FerriServiceImpl},
+    domain::{
+        car::models::CreateCarEvent,
+        ferri::{
+            models::{CreateFerryEvent, Ferri},
+            ports::FerriService,
+            service::FerriServiceImpl,
+        },
+        passenger::models::CreatePassengerEvent,
+    },
     infrastructure::{
         messaging::kafka::Kafka, repositories::in_memory_ferri_repository::InMemoryFerriRepository,
     },
@@ -27,7 +35,7 @@ where
             let _ferri_service = Arc::clone(&ferri_service);
 
             move |e: CreateFerryEvent| {
-                //let ferri_service = Arc::clone(&ferri_service);
+                let ferri_service = Arc::clone(&ferri_service);
 
                 info!("Received ferry: {:?}", e);
 
@@ -38,33 +46,38 @@ where
             }
         })
         .await?;
-    
-        messaging
-        .subscribe("cars", "merger", options, {
-            let ferri_service = Arc::clone(&ferri_service);
-            move |c: CreateCarEvent| {
-                info!("Received car: {:?}", c);
-                async move {
-                    ferri_service.add_car(Car::from_event(c)).await?;
-                    Ok(())
+
+    messaging
+        .subscribe(
+            "cars",
+            "merger",
+            SubscriptionOptions {
+                offset: Offset::Latests,
+            },
+            {
+                move |c: CreateCarEvent| {
+                    info!("Received car: {:?}", c);
+                    async move { Ok(()) }
                 }
-            }
-        })
+            },
+        )
         .await?;
 
     messaging
-        .subscribe("passenger", "merger", options, {
-            let ferri_service = Arc::clone(&ferri_service);
-            move |p: CreatePassengerEvent| {
-                info!("Received passenger: {:?}", p);
-                async move {
-                    ferri_service.add_passenger(Passenger::from_event(p)).await?;
-                    Ok(())
+        .subscribe(
+            "passenger",
+            "merger",
+            SubscriptionOptions {
+                offset: Offset::Latests,
+            },
+            {
+                move |p: CreatePassengerEvent| {
+                    info!("Received passenger: {:?}", p);
+                    async move { Ok(()) }
                 }
-            }
-        })
+            },
+        )
         .await?;
-
 
     Ok(())
 }

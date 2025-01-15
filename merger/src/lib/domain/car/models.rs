@@ -17,3 +17,12 @@ pub enum CarError {
     #[error("Error car not found: {0}")]
     NotFound(String),
 }
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CreateCarEvent {
+    pub id: String,
+    pub license_plate: String,
+    pub brand: String,
+    pub color: String,
+    pub capacity: i32,
+}
