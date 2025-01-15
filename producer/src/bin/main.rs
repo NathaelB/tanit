@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use fake::faker::automotive::fr_fr::LicencePlate;
 use fake::faker::company::en::CompanyName;
@@ -5,9 +7,20 @@ use fake::faker::lorem::en::Word;
 use fake::faker::name::en::{FirstName, LastName};
 use fake::Fake;
 use rand::Rng;
-use serde::Serialize;
-use tanit::domain::models::{Car, Ferry, Passenger};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::Timeout;
+use rdkafka::ClientConfig;
+use schema_registry_converter::async_impl::avro::AvroEncoder;
+use tanit::application::http::{HttpServer, HttpServerConfig};
+use tanit::application::messaging::{create_car_schema, create_ferri_schema, create_passernger_schema};
+use tanit::domain::models::{Car, Ferri, Passenger};
 use uuid::Uuid;
+
+use apache_avro::{types::Value, Schema, Writer};
+use schema_registry_converter::async_impl::schema_registry::{post_schema, SrSettings};
+use schema_registry_converter::schema_registry_common::{
+    SchemaType, SubjectNameStrategy, SuppliedSchema,
+};
 
 use tanit::application::ports::MessagingPort;
 use tanit::infrastructure::messaging::kafka::Kafka;
@@ -74,32 +87,97 @@ fn send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Kafka configuration
-    let kafka_host = "localhost:19092";
+async fn main() -> Result<()> {
+    println!("Hello, world!");
 
-    for _i in 0..10 {
-        // Generate random ferry
-        let ferry = generate_random_ferry();
-        send_to_kafka(kafka_host, "ferries".to_string(), &ferry);
 
-        for _j in 0..30 {
-            // Generate random car
-            let car = generate_random_car();
-            send_to_kafka(kafka_host, "cars".to_string(), &car);
+    create_car_schema().await?;
+    create_ferri_schema().await?;
+    create_passernger_schema().await?;
 
-            for _k in 0..5 {
-                // Generate random passengers
-                let passenger_with_car = generate_random_passenger(&ferry.id, Some(&car.id));
-                send_to_kafka(kafka_host, "passengers".to_string(), &passenger_with_car);
-            }
-        }
+    // let sr_settings = SrSettings::new("http://localhost:8081".to_string());
 
-        for _k in 0..10 {
-            let passenger_without_car = generate_random_passenger(&ferry.id, None);
-            send_to_kafka(kafka_host, "passengers".to_string(), &passenger_without_car);
-        }
-    }
+    // let mut record = HashMap::new();
+    // record.insert("id".to_string(), Value::String("123".to_string()));
+    // record.insert("name".to_string(), Value::String("Ferry".to_string()));
+    // record.insert("capacity".to_string(), Value::Int(500));
+
+    // // Vec<(&str, Value)>
+    // let vec_value = vec![
+    //     ("id", Value::String("123".to_string())),
+    //     ("name", Value::String("Ferry".to_string())),
+    //     ("capacity", Value::Int(500)),
+    // ];
+
+    // println!("logs: create value & record");
+
+    // let avro_encoder = AvroEncoder::new(sr_settings);
+    // // let subject_name_strategy = SubjectNameStrategy::TopicNameStrategyWithSchema(
+    // //     String::from("ferris"),
+    // //     false,
+    // //     supplied_schema,
+    // // );
+
+    // let subject_name_strategy =
+    //     SubjectNameStrategy::TopicNameStrategy(String::from("ferris"), false);
+
+    // println!("logs: create avro encoder");
+
+    // let record_vec = vec![record];
+    // println!("logs: create record_vec");
+    // println!("record_vec: {:?}", record_vec);
+    // let encoded_message = match avro_encoder.encode(vec_value, subject_name_strategy).await {
+    //     Ok(msg) => {
+    //         println!("Encoded message: {:?}", msg);
+    //         msg
+    //     }
+    //     Err(e) => {
+    //         eprintln!("Failed to encode message: {:?}", e);
+    //         return Err(e.into());
+    //     }
+    // };
+
+    // println!("Encoded message: {:?}", encoded_message);
+
+    // let producer: FutureProducer = ClientConfig::new()
+    //     .set("bootstrap.servers", "localhost:19092")
+    //     .create()?;
+
+    // let delivery_status = producer
+    //     .send(
+    //         FutureRecord::to("ferris")
+    //             .payload(&encoded_message)
+    //             .key("5"),
+    //         Timeout::Never,
+    //     )
+    //     .await;
+
+    // match delivery_status {
+    //     Ok(delivery) => println!("Delivery status: {:?}", delivery),
+    //     Err((e, _)) => eprintln!("Failed to deliver message: {:?}", e),
+    // }
+
+    // let sr_settings = SrSettings::new("http://localhost:8081".to_string());
+    // let client = SchemaRegistryClient::new(sr_settings);
+
+    // // Parsing du schéma Avro
+    // let schema = Schema::parse_str(schema_str)?;
+
+    // // Stratégie de nom de sujet
+    // let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy("test-topic".to_string(), false);
+
+    // // Enregistrement du schéma
+    // let schema_id = client.register(&subject_name_strategy, &schema).await?;
+
+    // // Affichage de l'ID du schéma enregistré
+    // println!("Schema registered with ID: {}", schema_id);
+
+    //generate_random_data();
+
+    let server_config = HttpServerConfig::new("3333".to_string());
+    let http_server = HttpServer::new(server_config).await?;
+
+    http_server.run().await?;
 
     Ok(())
 }
