@@ -6,12 +6,12 @@ use tanit::application::messaging::{
     create_car_schema, create_ferri_schema, create_passernger_schema,
 };
 use tanit::application::ports::MessagingPort;
+use tanit::domain::car::services::CarServiceImpl;
+use tanit::domain::ferry::services::FerryServiceImpl;
+use tanit::domain::passenger::services::PassengerServiceImpl;
 use tanit::domain::ports::DataSetService;
+use tanit::domain::services::DataSetServiceImpl;
 use tanit::infrastructure::messaging::kafka::Kafka;
-
-use tanit::domain::services::{
-    CarServiceImpl, DataSetServiceImpl, FerryServiceImpl, PassengerServiceImpl,
-};
 
 fn _send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
     let kafka = Kafka::new(host.to_string(), "default-group".to_string())
@@ -34,17 +34,17 @@ async fn main() -> Result<()> {
     )
     .expect("Failed to initialize Kafka");
 
-    let ferry_service = Arc::new(FerryServiceImpl::default());  // Ensure this is properly implemented.
-    let car_service = Arc::new(CarServiceImpl::default());      // Ensure this is properly implemented.
-    let passenger_service = Arc::new(PassengerServiceImpl::default());  // Ensure this is properly implemented.
-    let dataset_service = Arc::new(DataSetServiceImpl::default());      // This is your dataset generation service.
+    let ferry_service = Arc::new(FerryServiceImpl); // Ensure this is properly implemented.
+    let car_service = Arc::new(CarServiceImpl); // Ensure this is properly implemented.
+    let passenger_service = Arc::new(PassengerServiceImpl); // Ensure this is properly implemented.
+    let dataset_service = Arc::new(DataSetServiceImpl); // This is your dataset generation service.
 
     // Step 1: Generate the data
     let data = dataset_service
         .create_data_set(
-            300,                   // Set ferry capacity
-            ferry_service.clone(), // Cloned version of FerryService for thread-safe operation
-            car_service.clone(),   // Cloned version of CarService for thread-safe operation
+            300,                       // Set ferry capacity
+            ferry_service.clone(),     // Cloned version of FerryService for thread-safe operation
+            car_service.clone(),       // Cloned version of CarService for thread-safe operation
             passenger_service.clone(), // Cloned version of PassengerService for thread-safe operation
         )
         .await?;
