@@ -1,17 +1,10 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::sync::Arc;
 use tanit::{
     application::{
         http::{HttpServer, HttpServerConfig},
         ports::{MessagingPort, SubscriptionOptions},
     },
-    domain::ferri::{
-        models::{CreateFerryEvent, Ferri},
-        ports::FerriService,
-        service::FerriServiceImpl,
-    },
+    domain::ferri::{models::CreateFerryEvent, ports::FerriService, service::FerriServiceImpl},
     infrastructure::{
         messaging::kafka::Kafka, repositories::in_memory_ferri_repository::InMemoryFerriRepository,
     },
@@ -31,10 +24,10 @@ where
 
     messaging
         .subscribe("ferris", "merger", options, {
-            let ferri_service = Arc::clone(&ferri_service);
+            let _ferri_service = Arc::clone(&ferri_service);
 
             move |e: CreateFerryEvent| {
-                let ferri_service = Arc::clone(&ferri_service);
+                //let ferri_service = Arc::clone(&ferri_service);
 
                 info!("Received ferry: {:?}", e);
 
@@ -82,7 +75,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let kafka = Arc::new(Kafka::new(
-        "localhost:8098,localhost:8097".to_string(),
+        String::from("localhost:19092"),
         "example_group".to_string(),
     )?);
 

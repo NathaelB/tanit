@@ -1,12 +1,15 @@
 use crate::application::ports::{MessagingPort, Offset, SubscriptionOptions};
 use anyhow::Result;
+use apache_avro::from_value;
 use futures::StreamExt;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     producer::FutureProducer,
     ClientConfig, Message,
 };
+use schema_registry_converter::async_impl::{avro::AvroDecoder, schema_registry::SrSettings};
 use std::{collections::HashMap, sync::Arc};
+use tracing::info;
 
 #[derive(Clone)]
 pub struct Kafka {
@@ -62,34 +65,48 @@ impl MessagingPort for Kafka {
         }
 
         let consumer: Arc<StreamConsumer> = Arc::clone(&self.consumer);
+        let sr_settings = SrSettings::new("http://localhost:8081".to_string());
+        let avro_decoder = AvroDecoder::new(sr_settings);
 
         tokio::spawn(async move {
             while let Some(result) = consumer.stream().next().await {
                 match result {
                     Ok(message) => {
-                        if let Some(payload) = message.payload_view::<str>() {
+                        if let Some(payload) = message.payload_view::<[u8]>() {
                             match payload {
-                                Ok(text) => {
-                                    let parsed_message: T = match serde_json::from_str(text) {
+                                Ok(bytes) => {
+                                    info!("Received message bytes: {:?}", bytes);
+                                    let decoded = match avro_decoder.decode(Some(bytes)).await {
+                                        Ok(decoded) => decoded,
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "Error while decoding message: {:?}",
+                                                e
+                                            );
+                                            continue;
+                                        }
+                                    };
+
+                                    let parsed_message: T = match from_value(&decoded.value) {
                                         Ok(msg) => msg,
                                         Err(e) => {
-                                            eprintln!("Failed to parse message: {:?}", e);
+                                            tracing::error!("Error while parsing message: {:?}", e);
                                             continue;
                                         }
                                     };
 
                                     if let Err(e) = handler(parsed_message).await {
-                                        eprintln!("Failed to handle message: {:?}", e);
+                                        tracing::error!("Error while handling message: {:?}", e);
                                     }
                                 }
                                 Err(e) => {
-                                    eprintln!("Error while reading message: {:?}", e);
+                                    tracing::error!("Error while reading message: {:?}", e);
                                 }
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error while reading from stream: {:?}", e);
+                        tracing::error!("Error while reading from stream: {:?}", e);
                     }
                 }
             }

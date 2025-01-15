@@ -72,7 +72,7 @@ impl HttpServer {
     }
 }
 
-fn api_routes<F>() -> axum::Router<AppState<F>>
+fn _api_routes<F>() -> axum::Router<AppState<F>>
 where
     F: FerriService,
 {
