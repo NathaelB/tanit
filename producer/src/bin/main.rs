@@ -37,17 +37,14 @@ async fn main() -> Result<()> {
     let ferry_service = Arc::new(FerryServiceImpl); // Ensure this is properly implemented.
     let car_service = Arc::new(CarServiceImpl); // Ensure this is properly implemented.
     let passenger_service = Arc::new(PassengerServiceImpl); // Ensure this is properly implemented.
-    let dataset_service = Arc::new(DataSetServiceImpl); // This is your dataset generation service.
+    let dataset_service = Arc::new(DataSetServiceImpl::new(
+        Arc::clone(&ferry_service),
+        Arc::clone(&car_service),
+        Arc::clone(&passenger_service),
+    )); // This is your dataset generation service.
 
     // Step 1: Generate the data
-    let data = dataset_service
-        .create_data_set(
-            300,                       // Set ferry capacity
-            ferry_service.clone(),     // Cloned version of FerryService for thread-safe operation
-            car_service.clone(),       // Cloned version of CarService for thread-safe operation
-            passenger_service.clone(), // Cloned version of PassengerService for thread-safe operation
-        )
-        .await?;
+    let data = dataset_service.create_data_set(300).await?;
 
     let dataset_json = serde_json::to_string_pretty(&data)?;
 

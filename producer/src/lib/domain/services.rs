@@ -7,18 +7,41 @@ use super::passenger::ports::PassengerService;
 use super::{models::DataSet, ports::DataSetService};
 
 #[derive(Clone, Default)]
-pub struct DataSetServiceImpl;
+pub struct DataSetServiceImpl<F, C, P>
+where
+    F: FerryService,
+    C: CarService,
+    P: PassengerService,
+{
+    ferry_service: Arc<F>,
+    car_service: Arc<C>,
+    passenger_service: Arc<P>,
+}
 
-impl DataSetService for DataSetServiceImpl {
-    async fn create_data_set<F: FerryService, C: CarService, P: PassengerService>(
-        &self,
-        ferry_capacity: i32,
-        ferry_service: Arc<F>,
-        car_service: Arc<C>,
-        passenger_service: Arc<P>,
-    ) -> anyhow::Result<DataSet> {
+impl<F, C, P> DataSetServiceImpl<F, C, P>
+where
+    F: FerryService,
+    C: CarService,
+    P: PassengerService,
+{
+    pub fn new(ferry_service: Arc<F>, car_service: Arc<C>, passenger_service: Arc<P>) -> Self {
+        Self {
+            ferry_service,
+            car_service,
+            passenger_service,
+        }
+    }
+}
+
+impl<F, C, P> DataSetService for DataSetServiceImpl<F, C, P>
+where
+    F: FerryService,
+    C: CarService,
+    P: PassengerService,
+{
+    async fn create_data_set(&self, ferry_capacity: i32) -> anyhow::Result<DataSet> {
         // Step 1: Create the ferry
-        let ferry = ferry_service.create(ferry_capacity).await?;
+        let ferry = self.ferry_service.create(ferry_capacity).await?;
 
         // Step 2: Initialize variables
         let mut cars = Vec::new();
@@ -28,12 +51,13 @@ impl DataSetService for DataSetServiceImpl {
         // Step 3: Create cars and passengers for each car
         while remaining_capacity >= 6 {
             // Create a car
-            let car = car_service.create().await?;
+            let car = self.car_service.create().await?;
             cars.push(car.clone());
 
             // Create 5 passengers for the car
             for _ in 0..5 {
-                let passenger = passenger_service
+                let passenger = self
+                    .passenger_service
                     .create(Some(car.id.clone()), ferry.id.clone())
                     .await?;
                 passengers.push(passenger);
@@ -45,7 +69,10 @@ impl DataSetService for DataSetServiceImpl {
 
         // Step 4: Create passengers without cars to fill the remaining spots
         for _ in 0..remaining_capacity {
-            let passenger = passenger_service.create(None, ferry.id.clone()).await?;
+            let passenger = self
+                .passenger_service
+                .create(None, ferry.id.clone())
+                .await?;
             passengers.push(passenger);
         }
 
