@@ -76,9 +76,8 @@ pub async fn create_car_schema() -> Result<()> {
     Ok(())
 }
 
-
 pub async fn create_passernger_schema() -> Result<()> {
-  let schema_str = r#"
+    let schema_str = r#"
   {
       "type": "record",
       "name": "Passenger",
@@ -111,5 +110,5 @@ pub async fn create_passernger_schema() -> Result<()> {
     .await?;
 
     println!("Schema registered with ID: {}", registed_schema.id);
-  Ok(())
+    Ok(())
 }
