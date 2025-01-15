@@ -25,8 +25,11 @@ tracing-subscriber = "0.3.19"
 fake = "3.1.0"
 rand = "0.8"
 uuid = { version = "1.4", features = ["v4"] }
-
 serde_json = "1.0"
 kafka = "0.10.0"
 reqwest = { version = "0.12.12", features = ["json"] }
 urlencoding = "2.1.2"
+rdkafka = "0.37.0"
+
+dotenv = "0.15.0"
+futures = "0.3.31"
