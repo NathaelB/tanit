@@ -11,9 +11,10 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::util::Timeout;
 use rdkafka::ClientConfig;
 use schema_registry_converter::async_impl::avro::AvroEncoder;
+use serde::Serialize;
 use tanit::application::http::{HttpServer, HttpServerConfig};
 use tanit::application::messaging::{create_car_schema, create_ferri_schema, create_passernger_schema};
-use tanit::domain::models::{Car, Ferri, Passenger};
+use tanit::domain::models::{Car, Ferry, Passenger};
 use uuid::Uuid;
 
 use apache_avro::{types::Value, Schema, Writer};
