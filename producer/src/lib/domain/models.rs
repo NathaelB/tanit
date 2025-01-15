@@ -5,7 +5,7 @@ pub struct Ferry {
     pub capacity: i32,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct Car {
     pub id: String,
     pub licence_plate: String,
@@ -22,4 +22,11 @@ pub struct Passenger {
     pub firstname: String,
     pub lastname: String,
     pub sex: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct DataSet {
+    pub(crate) ferry: Ferry,
+    pub(crate) cars: Vec<Car>,
+    pub(crate) passengers: Vec<Passenger>,
 }
