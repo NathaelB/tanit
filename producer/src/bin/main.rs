@@ -9,8 +9,12 @@ use tanit::application::messaging::{
     create_car_schema, create_ferri_schema, create_passenger_schema,
 };
 use tanit::application::ports::MessagingPort;
+use tanit::domain::car::ports::CarService;
 use tanit::domain::car::services::CarServiceImpl;
+use tanit::domain::ferry::ports::FerryService;
 use tanit::domain::ferry::services::FerryServiceImpl;
+use tanit::domain::passenger;
+use tanit::domain::passenger::ports::PassengerService;
 use tanit::domain::passenger::services::PassengerServiceImpl;
 use tanit::domain::ports::DataSetService;
 use tanit::domain::services::DataSetServiceImpl;
@@ -57,6 +61,9 @@ async fn main() -> Result<()> {
 
     //dataset_service.produce_data(env.messages).await?;
 
+    create_car_schema().await?;
+    create_ferri_schema().await?;
+    create_passenger_schema().await?;
     let mut interval = interval(Duration::from_secs(1));
 
     tokio::spawn(async move {
@@ -85,10 +92,6 @@ async fn main() -> Result<()> {
         }
     })
     .await?;
-
-    create_car_schema().await?;
-    create_ferri_schema().await?;
-    create_passenger_schema().await?;
 
     println!("Schemas created successfully");
 

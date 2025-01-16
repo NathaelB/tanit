@@ -8,8 +8,7 @@ pub async fn create_ferri_schema() -> Result<()> {
     let schema_str = r#"
   {
       "type": "record",
-      "name": "Ferry",
-      "namespace": "nl.openweb.data",
+      "name": "ferry",
       "fields": [
           {"name": "id", "type": "string"},
           {"name": "name", "type": "string"},
@@ -43,11 +42,9 @@ pub async fn create_car_schema() -> Result<()> {
     let schema_str = r#"
   {
       "type": "record",
-      "name": "Car",
-      "namespace": "nl.openweb.data",
+      "name": "car",
       "fields": [
           {"name": "id", "type": "string"},
-          {"name": "licence_plate", "type": "string"},
           {"name": "brand", "type": "string"},
           {"name": "color", "type": "string"},
           {"name": "capacity", "type": "int"}
@@ -80,8 +77,7 @@ pub async fn create_passenger_schema() -> Result<()> {
     let schema_str = r#"
   {
       "type": "record",
-      "name": "Passenger",
-      "namespace": "nl.openweb.data",
+      "name": "passenger",
       "fields": [
           {"name": "id", "type": "string"},
           {"name": "car_id", "type": ["null", "string"]},
