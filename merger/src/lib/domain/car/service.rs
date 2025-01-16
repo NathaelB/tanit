@@ -24,7 +24,7 @@ impl<C> CarService for CarServiceImpl<C>
 where
     C: CarRepository,
 {
-    async fn create(&self, _car: Car) -> Result<Car, CarError> {
-        todo!()
+    async fn create(&self, car: Car) -> Result<Car, CarError> {
+        self.car_repository.create(car).await
     }
 }

@@ -26,7 +26,15 @@ impl<F> FerriService for FerriServiceImpl<F>
 where
     F: FerriRepository,
 {
-    fn add_ferry(&self, ferri: Ferri) -> impl Future<Output = anyhow::Result<()>> + Send {
-        self.ferri_repository.save(ferri)
+    async fn add_ferry(&self, ferri: Ferri) -> anyhow::Result<()> {
+        self.ferri_repository.save(ferri).await
+    }
+
+    async fn find_all(&self) -> anyhow::Result<Vec<Ferri>> {
+        self.ferri_repository.find_all().await
+    }
+
+    async fn find_by_id(&self, id: &str) -> anyhow::Result<Option<Ferri>> {
+        self.ferri_repository.find_by_id(id).await
     }
 }

@@ -27,4 +27,16 @@ impl FerriRepository for InMemoryFerriRepository {
 
         Ok(())
     }
+
+    async fn find_all(&self) -> anyhow::Result<Vec<Ferri>> {
+        let ferries = self.ferries.lock().await;
+
+        Ok(ferries.clone())
+    }
+
+    async fn find_by_id(&self, id: &str) -> anyhow::Result<Option<Ferri>> {
+        let ferries = self.ferries.lock().await;
+
+        Ok(ferries.iter().find(|f| f.id == id).cloned())
+    }
 }
