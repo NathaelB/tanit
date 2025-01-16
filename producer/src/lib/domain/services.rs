@@ -95,6 +95,10 @@ where
                 .passenger_service
                 .create(None, ferry.id.clone())
                 .await?;
+
+            self.messaging_service
+                .publish_message(String::from("passengers"), passenger.clone())
+                .await?;
             passengers.push(passenger);
         }
 
