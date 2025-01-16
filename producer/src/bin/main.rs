@@ -1,9 +1,12 @@
 use anyhow::Result;
+use clap::Parser;
+use futures::future::join_all;
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::Duration;
 use tanit::application::http::{HttpServer, HttpServerConfig};
 use tanit::application::messaging::{
-    create_car_schema, create_ferri_schema, create_passernger_schema,
+    create_car_schema, create_ferri_schema, create_passenger_schema,
 };
 use tanit::application::ports::MessagingPort;
 use tanit::domain::car::services::CarServiceImpl;
@@ -11,7 +14,9 @@ use tanit::domain::ferry::services::FerryServiceImpl;
 use tanit::domain::passenger::services::PassengerServiceImpl;
 use tanit::domain::ports::DataSetService;
 use tanit::domain::services::DataSetServiceImpl;
+use tanit::infrastructure::env::Env;
 use tanit::infrastructure::messaging::kafka::Kafka;
+use tokio::time::interval;
 
 fn _send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
     let kafka = Kafka::new(host.to_string(), "default-group".to_string())
@@ -28,11 +33,17 @@ fn _send_to_kafka<T: Serialize>(host: &str, topic: String, data: &T) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _kafka = Kafka::new(
+    dotenv::dotenv().ok();
+
+    let env = Arc::new(Env::parse());
+
+    let kafka = Kafka::new(
         String::from("localhost:19092"),
         String::from("default-group"),
     )
     .expect("Failed to initialize Kafka");
+
+    let kafka = Arc::new(kafka);
 
     let ferry_service = Arc::new(FerryServiceImpl); // Ensure this is properly implemented.
     let car_service = Arc::new(CarServiceImpl); // Ensure this is properly implemented.
@@ -41,97 +52,45 @@ async fn main() -> Result<()> {
         Arc::clone(&ferry_service),
         Arc::clone(&car_service),
         Arc::clone(&passenger_service),
-    )); // This is your dataset generation service.
+        Arc::clone(&kafka),
+    ));
 
-    // Step 1: Generate the data
-    let data = dataset_service.create_data_set(300).await?;
+    //dataset_service.produce_data(env.messages).await?;
 
-    let dataset_json = serde_json::to_string_pretty(&data)?;
+    let mut interval = interval(Duration::from_secs(1));
 
-    print!("{}", dataset_json);
+    tokio::spawn(async move {
+        loop {
+            interval.tick().await;
+
+            let mut tasks = Vec::new();
+
+            for _ in 0..env.messages {
+                let dataset_service_clone = Arc::clone(&dataset_service);
+
+                let task =
+                    tokio::spawn(async move { dataset_service_clone.create_ferry(50).await });
+                tasks.push(task);
+            }
+
+            let results = join_all(tasks).await;
+
+            for result in results {
+                if let Err(e) = result {
+                    eprintln!("Error producing data: {:?}", e);
+                }
+            }
+
+            println!("Producing data");
+        }
+    })
+    .await?;
 
     create_car_schema().await?;
     create_ferri_schema().await?;
-    create_passernger_schema().await?;
+    create_passenger_schema().await?;
 
-    // let sr_settings = SrSettings::new("http://localhost:8081".to_string());
-
-    // let mut record = HashMap::new();
-    // record.insert("id".to_string(), Value::String("123".to_string()));
-    // record.insert("name".to_string(), Value::String("Ferry".to_string()));
-    // record.insert("capacity".to_string(), Value::Int(500));
-
-    // // Vec<(&str, Value)>
-    // let vec_value = vec![
-    //     ("id", Value::String("123".to_string())),
-    //     ("name", Value::String("Ferry".to_string())),
-    //     ("capacity", Value::Int(500)),
-    // ];
-
-    // println!("logs: create value & record");
-
-    // let avro_encoder = AvroEncoder::new(sr_settings);
-    // // let subject_name_strategy = SubjectNameStrategy::TopicNameStrategyWithSchema(
-    // //     String::from("ferris"),
-    // //     false,
-    // //     supplied_schema,
-    // // );
-
-    // let subject_name_strategy =
-    //     SubjectNameStrategy::TopicNameStrategy(String::from("ferris"), false);
-
-    // println!("logs: create avro encoder");
-
-    // let record_vec = vec![record];
-    // println!("logs: create record_vec");
-    // println!("record_vec: {:?}", record_vec);
-    // let encoded_message = match avro_encoder.encode(vec_value, subject_name_strategy).await {
-    //     Ok(msg) => {
-    //         println!("Encoded message: {:?}", msg);
-    //         msg
-    //     }
-    //     Err(e) => {
-    //         eprintln!("Failed to encode message: {:?}", e);
-    //         return Err(e.into());
-    //     }
-    // };
-
-    // println!("Encoded message: {:?}", encoded_message);
-
-    // let producer: FutureProducer = ClientConfig::new()
-    //     .set("bootstrap.servers", "localhost:19092")
-    //     .create()?;
-
-    // let delivery_status = producer
-    //     .send(
-    //         FutureRecord::to("ferris")
-    //             .payload(&encoded_message)
-    //             .key("5"),
-    //         Timeout::Never,
-    //     )
-    //     .await;
-
-    // match delivery_status {
-    //     Ok(delivery) => println!("Delivery status: {:?}", delivery),
-    //     Err((e, _)) => eprintln!("Failed to deliver message: {:?}", e),
-    // }
-
-    // let sr_settings = SrSettings::new("http://localhost:8081".to_string());
-    // let client = SchemaRegistryClient::new(sr_settings);
-
-    // // Parsing du schéma Avro
-    // let schema = Schema::parse_str(schema_str)?;
-
-    // // Stratégie de nom de sujet
-    // let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy("test-topic".to_string(), false);
-
-    // // Enregistrement du schéma
-    // let schema_id = client.register(&subject_name_strategy, &schema).await?;
-
-    // // Affichage de l'ID du schéma enregistré
-    // println!("Schema registered with ID: {}", schema_id);
-
-    //generate_random_data();
+    println!("Schemas created successfully");
 
     let server_config = HttpServerConfig::new("3333".to_string());
     let http_server = HttpServer::new(server_config).await?;

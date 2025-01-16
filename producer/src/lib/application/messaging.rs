@@ -76,7 +76,7 @@ pub async fn create_car_schema() -> Result<()> {
     Ok(())
 }
 
-pub async fn create_passernger_schema() -> Result<()> {
+pub async fn create_passenger_schema() -> Result<()> {
     let schema_str = r#"
   {
       "type": "record",

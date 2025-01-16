@@ -1,4 +1,4 @@
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, Clone)]
 pub struct Passenger {
     pub id: String,
     pub car_id: Option<String>,

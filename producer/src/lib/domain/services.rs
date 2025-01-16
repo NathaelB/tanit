@@ -1,3 +1,5 @@
+use crate::application::ports::MessagingPort;
+
 use super::car::ports::CarService;
 use std::sync::Arc;
 
@@ -7,41 +9,55 @@ use super::passenger::ports::PassengerService;
 use super::{models::DataSet, ports::DataSetService};
 
 #[derive(Clone, Default)]
-pub struct DataSetServiceImpl<F, C, P>
+pub struct DataSetServiceImpl<F, C, P, M>
 where
     F: FerryService,
     C: CarService,
     P: PassengerService,
+    M: MessagingPort,
 {
     ferry_service: Arc<F>,
     car_service: Arc<C>,
     passenger_service: Arc<P>,
+    messaging_service: Arc<M>,
 }
 
-impl<F, C, P> DataSetServiceImpl<F, C, P>
+impl<F, C, P, M> DataSetServiceImpl<F, C, P, M>
 where
     F: FerryService,
     C: CarService,
     P: PassengerService,
+    M: MessagingPort,
 {
-    pub fn new(ferry_service: Arc<F>, car_service: Arc<C>, passenger_service: Arc<P>) -> Self {
+    pub fn new(
+        ferry_service: Arc<F>,
+        car_service: Arc<C>,
+        passenger_service: Arc<P>,
+        messaging_service: Arc<M>,
+    ) -> Self {
         Self {
             ferry_service,
             car_service,
             passenger_service,
+            messaging_service,
         }
     }
 }
 
-impl<F, C, P> DataSetService for DataSetServiceImpl<F, C, P>
+impl<F, C, P, M> DataSetService for DataSetServiceImpl<F, C, P, M>
 where
     F: FerryService,
     C: CarService,
     P: PassengerService,
+    M: MessagingPort,
 {
-    async fn create_data_set(&self, ferry_capacity: i32) -> anyhow::Result<DataSet> {
+    async fn create_ferry(&self, ferry_capacity: i32) -> anyhow::Result<DataSet> {
         // Step 1: Create the ferry
         let ferry = self.ferry_service.create(ferry_capacity).await?;
+
+        self.messaging_service
+            .publish_message(String::from("ferries"), ferry.clone())
+            .await?;
 
         // Step 2: Initialize variables
         let mut cars = Vec::new();
@@ -52,6 +68,9 @@ where
         while remaining_capacity >= 6 {
             // Create a car
             let car = self.car_service.create().await?;
+            self.messaging_service
+                .publish_message(String::from("cars"), car.clone())
+                .await?;
             cars.push(car.clone());
 
             // Create 5 passengers for the car
@@ -59,6 +78,9 @@ where
                 let passenger = self
                     .passenger_service
                     .create(Some(car.id.clone()), ferry.id.clone())
+                    .await?;
+                self.messaging_service
+                    .publish_message(String::from("passengers"), passenger.clone())
                     .await?;
                 passengers.push(passenger);
             }
