@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 
 use crate::domain::ferri::ports::FerriService;
 
@@ -14,7 +14,7 @@ where
     F: FerriService,
 {
     pub passenger_repository: P,
-    pub ferry_service: Arc<F>
+    pub ferry_service: Arc<F>,
 }
 
 impl<P, F> PassengerServiceImpl<P, F>
@@ -44,12 +44,23 @@ where
         let ferry = self.ferry_service.find_by_id(&passenger.ferry_id).await?;
 
         if let Some(ferry) = ferry {
-            if capacity < ferry.capacity {
+            if capacity > ferry.capacity - 1 {
+                let passengers = self
+                    .passenger_repository
+                    .find_by_ferry_id(&ferry.id)
+                    .await?;
+
+                self.ferry_service
+                    .send_to_saver(passengers, ferry.clone())
+                    .await?;
+
+                self.passenger_repository
+                    .delete_by_ferry_id(&ferry.id)
+                    .await?;
+
                 return Err(anyhow::anyhow!("Ferry is full"));
             }
         }
-
-       
 
         self.passenger_repository.save(passenger).await
     }
