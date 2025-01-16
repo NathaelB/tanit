@@ -71,7 +71,7 @@ where
             "cars",
             "merger",
             SubscriptionOptions {
-                offset: Offset::Beginning,
+                offset: Offset::Latests,
             },
             {
                 info!("listen to cars");
@@ -92,7 +92,7 @@ where
             "passengers",
             "merger",
             SubscriptionOptions {
-                offset: Offset::Beginning,
+                offset: Offset::Latests,
             },
             {
                 info!("listen to passenger");
