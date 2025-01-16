@@ -1,70 +1,90 @@
 version: '3'
 
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
+   zookeeper:
+      image: confluentinc/cp-zookeeper:latest
+      container_name: zookeeper
+      environment:
+         ZOOKEEPER_CLIENT_PORT: 2181
+         ZOOKEEPER_TICK_TIME: 2000
+      ports:
+         - '2181:2181'
 
-  schema-registry:
-    image: confluentinc/cp-schema-registry:latest
-    hostname: schema-registry
-    depends_on:
-      - kafka1
-      - kafka2
-    ports:
-      - "8081:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
-      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
-      SCHEMA_REGISTRY_DEBUG: 'true'
+   schema-registry:
+      image: confluentinc/cp-schema-registry:latest
+      hostname: schema-registry
+      depends_on:
+         - kafka1
+         - kafka2
+      ports:
+         - '8081:8081'
+      environment:
+         SCHEMA_REGISTRY_HOST_NAME: schema-registry
+         SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
+         SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
+         SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
+         SCHEMA_REGISTRY_DEBUG: 'true'
 
-  kafka1:
-    image: confluentinc/cp-kafka:latest
-    hostname: kafka1
-    ports:
-      - "19092:19092"
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,PLAINTEXT_INTERNAL://localhost:19092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-  kafka2:
-    image: confluentinc/cp-kafka:latest
-    hostname: kafka2
-    ports:
-      - "29092:29092"
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 2
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
-  akhq:
-    image: tchiotludo/akhq:latest
-    container_name: akhq
-    depends_on:
-      - kafka1
-      - kafka2
-    ports:
-      - "8080:8080"
-    environment:
-      AKHQ_CONFIGURATION: |
-        akhq:
-          connections:
-            docker-kafka-server:
-              properties:
-                bootstrap.servers: "kafka2:9092"
-              schema-registry:
-                url: "http://schema-registry:8081"
+   kafka1:
+      image: confluentinc/cp-kafka:latest
+      hostname: kafka1
+      ports:
+         - '19092:19092'
+      depends_on:
+         - zookeeper
+      environment:
+         KAFKA_BROKER_ID: 1
+         KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+         KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,PLAINTEXT_INTERNAL://localhost:19092
+         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+   kafka2:
+      image: confluentinc/cp-kafka:latest
+      hostname: kafka2
+      ports:
+         - '29092:29092'
+      depends_on:
+         - zookeeper
+      environment:
+         KAFKA_BROKER_ID: 2
+         KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+         KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
+         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+   akhq:
+      image: tchiotludo/akhq:latest
+      container_name: akhq
+      depends_on:
+         - kafka1
+         - kafka2
+      ports:
+         - '8080:8080'
+      environment:
+         AKHQ_CONFIGURATION: |
+            akhq:
+              connections:
+                docker-kafka-server:
+                  properties:
+                    bootstrap.servers: "kafka2:9092"
+                  schema-registry:
+                    url: "http://schema-registry:8081"
+   hive-metastore:
+      image: apache/hive:4.0.1
+      container_name: hive-metastore
+      environment:
+         SERVICE_NAME: metastore
+      ports:
+         - '9083:9083'
+
+   trino:
+      image: trinodb/trino:latest
+      container_name: trino
+      restart: unless-stopped
+      ports:
+         - '8082:8080'
+      depends_on:
+         - kafka1
+         - kafka2
+         - hive-metastore
+      volumes:
+         - ./docker/trino/catalog:/etc/trino/catalog
