@@ -45,13 +45,13 @@ async fn main() -> Result<()> {
 
     let events: Arc<RwLock<Vec<FerryEvent>>> = Arc::new(RwLock::new(Vec::new()));
 
-    let kafka = Arc::new(
-        Kafka::new(
-            "localhost:8098,localhost:8097".to_string(),
-            "example_group".to_string(),
-        )
-        .unwrap(),
-    );
+    let kafka = Kafka::new(
+        String::from("localhost:19092"),
+        String::from("default-group"),
+    )
+    .expect("Failed to initialize Kafka");
+
+    let kafka = Arc::new(kafka);
 
     start_subscriptions(Arc::clone(&kafka), schema, events, Arc::new(ctx)).await?;
     Ok(())
@@ -81,7 +81,7 @@ pub async fn start_subscriptions(
     };
 
     messaging
-        .subscribe("ferris", "saver", options, {
+        .subscribe("test", "default-group", options, {
             let s = Arc::clone(&schema);
             let ctx = Arc::clone(&ctx);
             let events = Arc::clone(&events);
