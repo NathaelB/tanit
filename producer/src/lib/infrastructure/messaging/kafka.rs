@@ -3,10 +3,21 @@ use anyhow::Result;
 use futures::StreamExt;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
-    producer::FutureProducer,
+    producer::{FutureProducer, FutureRecord},
     ClientConfig, Message,
 };
+use schema_registry_converter::{
+    async_impl::{avro::AvroEncoder, schema_registry::SrSettings},
+    schema_registry_common::SubjectNameStrategy,
+};
+use serde::Serialize;
 use std::{collections::HashMap, sync::Arc};
+
+pub enum SchemaType {
+    Ferry,
+    Car,
+    Passenger,
+}
 
 #[derive(Clone)]
 pub struct Kafka {
@@ -36,19 +47,25 @@ impl Kafka {
 }
 
 impl MessagingPort for Kafka {
-    async fn publish_message(&self, topic: String, message: String) -> anyhow::Result<()> {
+    async fn publish_message<T: Serialize>(&self, topic: String, message: T) -> anyhow::Result<()> {
         let producer = Arc::clone(&self.producer);
 
-        // Create and send a Kafka message
-        let record = rdkafka::producer::FutureRecord::to(&topic)
-            .payload(&message)
-            .key("key"); // Optional: Add a key if needed
+        let sr_settings = SrSettings::new("http://localhost:8081".to_string());
+        let encoder = AvroEncoder::new(sr_settings);
 
-        // Wait for the result of the send operation
+        let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(topic.clone(), false);
+        let encoded_message = encoder
+            .encode_struct(message, &subject_name_strategy)
+            .await?;
+
+        let record = FutureRecord::to(&topic)
+            .payload(&encoded_message)
+            .key("key");
+
         producer
             .send(record, rdkafka::util::Timeout::Never)
             .await
-            .map_err(|(e, _)| anyhow::Error::new(e))?; // Map the Kafka error into anyhow::Error
+            .map_err(|(e, _)| anyhow::Error::new(e))?;
 
         Ok(())
     }

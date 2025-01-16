@@ -15,11 +15,13 @@ pub struct SubscriptionOptions {
 }
 
 pub trait MessagingPort: Clone + Send + Sync + 'static {
-    fn publish_message(
+    fn publish_message<T>(
         &self,
         topic: String,
-        message: String,
-    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+        message: T,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send
+    where
+        T: serde::Serialize + Send + Sync + Debug + Clone + 'static;
 
     fn subscribe<F, T, Fut>(
         &self,
