@@ -4,7 +4,6 @@ use thiserror::Error;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Car {
     pub id: String,
-    pub license_plate: String,
     pub brand: String,
     pub color: String,
     pub capacity: i32,
@@ -18,10 +17,20 @@ pub enum CarError {
     NotFound(String),
 }
 
+impl Car {
+    pub fn from_event(event: CreateCarEvent) -> Self {
+        Car {
+            id: event.id,
+            brand: event.brand,
+            color: event.color,
+            capacity: event.capacity,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct CreateCarEvent {
     pub id: String,
-    pub license_plate: String,
     pub brand: String,
     pub color: String,
     pub capacity: i32,

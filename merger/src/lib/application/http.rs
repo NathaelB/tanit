@@ -1,11 +1,17 @@
 use std::sync::Arc;
 
+use crate::domain::{
+    car::ports::CarService, ferri::ports::FerriService, passenger::ports::PassengerService,
+};
 use anyhow::{Context, Result};
+use axum::routing::get;
 use axum::Extension;
+use handlers::get_ferries::get_ferries;
 use tokio::net;
 use tracing::{info, info_span};
 
-use crate::domain::ferri::ports::FerriService;
+pub mod handlers;
+pub mod responses;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HttpServerConfig {
@@ -24,17 +30,28 @@ pub struct HttpServer {
 }
 
 #[derive(Clone)]
-struct AppState<F>
+struct AppState<F, C, P>
 where
     F: FerriService,
+    C: CarService,
+    P: PassengerService,
 {
     ferri_service: Arc<F>,
+    car_service: Arc<C>,
+    passenger_service: Arc<P>,
 }
 
 impl HttpServer {
-    pub async fn new<F>(config: HttpServerConfig, ferri_service: Arc<F>) -> Result<Self>
+    pub async fn new<F, C, P>(
+        config: HttpServerConfig,
+        ferri_service: Arc<F>,
+        car_service: Arc<C>,
+        passenger_service: Arc<P>,
+    ) -> Result<Self>
     where
         F: FerriService,
+        C: CarService,
+        P: PassengerService,
     {
         let trace_layer = tower_http::trace::TraceLayer::new_for_http().make_span_with(
             |request: &axum::extract::Request| {
@@ -44,10 +61,13 @@ impl HttpServer {
         );
         let state = AppState {
             ferri_service: Arc::clone(&ferri_service),
+            car_service: Arc::clone(&car_service),
+            passenger_service: Arc::clone(&passenger_service),
         };
 
         let router = axum::Router::new()
-            //.nest("/", api_routes())
+            //.nest("", api_routes())
+            .merge(api_routes())
             .layer(trace_layer)
             .layer(Extension(Arc::clone(&state.ferri_service)))
             .with_state(state);
@@ -72,9 +92,11 @@ impl HttpServer {
     }
 }
 
-fn _api_routes<F>() -> axum::Router<AppState<F>>
+fn api_routes<F, C, P>() -> axum::Router<AppState<F, C, P>>
 where
     F: FerriService,
+    C: CarService,
+    P: PassengerService,
 {
-    axum::Router::new()
+    axum::Router::new().route("/ferries", get(get_ferries::<F>))
 }

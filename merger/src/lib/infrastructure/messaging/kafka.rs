@@ -1,13 +1,22 @@
-use crate::application::ports::{MessagingPort, Offset, SubscriptionOptions};
+use crate::{
+    application::ports::{MessagingPort, Offset, SubscriptionOptions},
+    domain::car::models::CreateCarEvent,
+};
 use anyhow::Result;
-use apache_avro::from_value;
+use apache_avro::{from_value, Schema};
 use futures::StreamExt;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     producer::FutureProducer,
     ClientConfig, Message,
 };
-use schema_registry_converter::async_impl::{avro::AvroDecoder, schema_registry::SrSettings};
+use schema_registry_converter::{
+    async_impl::{
+        avro::AvroDecoder,
+        schema_registry::{get_schema_by_subject, SrSettings},
+    },
+    schema_registry_common::SubjectNameStrategy,
+};
 use std::{collections::HashMap, sync::Arc};
 use tracing::info;
 
@@ -16,6 +25,18 @@ pub struct Kafka {
     #[allow(unused)]
     producer: Arc<FutureProducer>,
     consumer: Arc<StreamConsumer>,
+    brokers: String,
+}
+
+async fn get_schema_for_topic(topic: &str) -> Result<Schema> {
+    let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(topic.to_string(), false);
+    let sr_settings = SrSettings::new("http://localhost:8081".to_string());
+
+    let registered_schema = get_schema_by_subject(&sr_settings, &subject_name_strategy).await?;
+
+    let schema = Schema::parse_str(&registered_schema.schema)?;
+
+    Ok(schema)
 }
 
 impl Kafka {
@@ -34,6 +55,7 @@ impl Kafka {
         Ok(Kafka {
             producer: Arc::new(producer),
             consumer: Arc::new(consumer),
+            brokers: brokers,
         })
     }
 }
@@ -55,19 +77,24 @@ impl MessagingPort for Kafka {
         Fut: std::future::Future<Output = anyhow::Result<()>> + Send + 'static,
         T: serde::de::DeserializeOwned + Send + Sync + std::fmt::Debug + Clone + 'static,
     {
-        self.consumer.subscribe(&[topic])?;
+        let consumer = ClientConfig::new()
+            .set("bootstrap.servers", &self.brokers)
+            .set("group.id", "merger")
+            .set("enable.auto.commit", "true")
+            .set("auto.offset.reset", "earliest")
+            .create::<StreamConsumer>()?;
 
         if let Offset::Beginning = options.offset {
             let mut hash_map = HashMap::new();
             hash_map.insert((topic.to_string(), 0), rdkafka::Offset::Beginning);
             let t = rdkafka::TopicPartitionList::from_topic_map(&hash_map).unwrap();
-            self.consumer.assign(&t)?;
+            consumer.assign(&t)?;
         }
 
-        let consumer: Arc<StreamConsumer> = Arc::clone(&self.consumer);
         let sr_settings = SrSettings::new("http://localhost:8081".to_string());
         let avro_decoder = AvroDecoder::new(sr_settings);
 
+        let topic = topic.to_string();
         tokio::spawn(async move {
             while let Some(result) = consumer.stream().next().await {
                 match result {
@@ -75,17 +102,18 @@ impl MessagingPort for Kafka {
                         if let Some(payload) = message.payload_view::<[u8]>() {
                             match payload {
                                 Ok(bytes) => {
-                                    info!("Received message bytes: {:?}", bytes);
-                                    let decoded = match avro_decoder.decode(Some(bytes)).await {
-                                        Ok(decoded) => decoded,
-                                        Err(e) => {
-                                            tracing::error!(
-                                                "Error while decoding message: {:?}",
-                                                e
-                                            );
-                                            continue;
+                                    let decoded =
+                                        match avro_decoder.decode_with_schema(Some(bytes)).await {
+                                            Ok(decoded) => decoded,
+                                            Err(e) => {
+                                                tracing::error!(
+                                                    "Error while decoding message: {:?}",
+                                                    e
+                                                );
+                                                continue;
+                                            }
                                         }
-                                    };
+                                        .unwrap();
 
                                     let parsed_message: T = match from_value(&decoded.value) {
                                         Ok(msg) => msg,

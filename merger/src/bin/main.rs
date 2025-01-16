@@ -1,20 +1,34 @@
-use std::sync::Arc;
+use std::{env::consts::ARCH, sync::Arc};
 use tanit::{
     application::{
         http::{HttpServer, HttpServerConfig},
         ports::{MessagingPort, Offset, SubscriptionOptions},
     },
     domain::{
-        car::{models::CreateCarEvent, ports::CarService},
+        car::{
+            models::{Car, CreateCarEvent},
+            ports::CarService,
+            service::CarServiceImpl,
+        },
         ferri::{
             models::{CreateFerryEvent, Ferri},
             ports::FerriService,
             service::FerriServiceImpl,
         },
-        passenger::{models::CreatePassengerEvent, ports::PassengerService},
+        passenger::{
+            self,
+            models::{CreatePassengerEvent, Passenger},
+            ports::PassengerService,
+            service::PassengerServiceImpl,
+        },
     },
     infrastructure::{
-        messaging::kafka::Kafka, repositories::in_memory_ferri_repository::InMemoryFerriRepository,
+        messaging::kafka::Kafka,
+        repositories::{
+            in_memory_car_repository::InMemoryCarRepository,
+            in_memory_ferri_repository::InMemoryFerriRepository,
+            in_memory_passenger_repository::InMemoryPassengerRepository,
+        },
     },
 };
 
@@ -38,14 +52,31 @@ where
     };
 
     messaging
-        .subscribe("ferris", "merger", options, {
-            let _ferri_service = Arc::clone(&ferri_service);
+        .subscribe(
+            "cars",
+            "merger",
+            SubscriptionOptions {
+                offset: Offset::Beginning,
+            },
+            {
+                info!("listen to cars");
+                move |c: CreateCarEvent| {
+                    let car_service = Arc::clone(&car_service);
 
+                    async move {
+                        car_service.create(Car::from_event(c)).await?;
+                        Ok(())
+                    }
+                }
+            },
+        )
+        .await?;
+
+    messaging
+        .subscribe("ferries", "merger", options, {
+            info!("listen to ferri");
             move |e: CreateFerryEvent| {
                 let ferri_service = Arc::clone(&ferri_service);
-
-                info!("Received ferry: {:?}", e);
-
                 async move {
                     ferri_service.add_ferry(Ferri::from_event(e)).await?;
                     Ok(())
@@ -56,31 +87,22 @@ where
 
     messaging
         .subscribe(
-            "cars",
+            "passengers",
             "merger",
             SubscriptionOptions {
-                offset: Offset::Latests,
+                offset: Offset::Beginning,
             },
             {
-                move |c: CreateCarEvent| {
-                    info!("Received car: {:?}", c);
-                    async move { Ok(()) }
-                }
-            },
-        )
-        .await?;
-
-    messaging
-        .subscribe(
-            "passenger",
-            "merger",
-            SubscriptionOptions {
-                offset: Offset::Latests,
-            },
-            {
+                info!("listen to passenger");
                 move |p: CreatePassengerEvent| {
-                    info!("Received passenger: {:?}", p);
-                    async move { Ok(()) }
+                    let passenger_service = Arc::clone(&passenger_service);
+
+                    async move {
+                        passenger_service
+                            .add_passenger(Passenger::from_event(p))
+                            .await?;
+                        Ok(())
+                    }
                 }
             },
         )
@@ -102,12 +124,29 @@ async fn main() -> Result<()> {
     let ferri_repository = InMemoryFerriRepository::new();
     let ferri_service = Arc::new(FerriServiceImpl::new(ferri_repository));
 
+    let car_repository = InMemoryCarRepository::default();
+    let passenger_repository = InMemoryPassengerRepository::default();
 
-    //start_subscriptions(Arc::clone(&kafka), Arc::clone(&ferri_service)).await?;
+    let car_service = Arc::new(CarServiceImpl::new(car_repository));
+    let passenger_service = Arc::new(PassengerServiceImpl::new(passenger_repository));
+
+    start_subscriptions(
+        Arc::clone(&kafka),
+        Arc::clone(&ferri_service),
+        Arc::clone(&car_service),
+        Arc::clone(&passenger_service),
+    )
+    .await?;
 
     let server_config = HttpServerConfig::new("3333".to_string());
 
-    let http_server = HttpServer::new(server_config, Arc::clone(&ferri_service)).await?;
+    let http_server = HttpServer::new(
+        server_config,
+        Arc::clone(&ferri_service),
+        Arc::clone(&car_service),
+        Arc::clone(&passenger_service),
+    )
+    .await?;
 
     http_server.run().await?;
 
