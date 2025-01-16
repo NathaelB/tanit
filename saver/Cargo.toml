@@ -14,9 +14,11 @@ name = "tanit"
 
 [dependencies]
 anyhow = "1.0.95"
+apache-avro = "0.17.0"
 datafusion = "43.0.0"
 futures = "0.3.31"
 rdkafka = "0.37.0"
+schema_registry_converter = { version = "4.2.0", features = ["avro"] }
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.135"
 tokio = { version = "1.43.0", features = ["full"] }
