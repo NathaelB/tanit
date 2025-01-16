@@ -70,6 +70,8 @@ impl HttpServer {
             .merge(api_routes())
             .layer(trace_layer)
             .layer(Extension(Arc::clone(&state.ferri_service)))
+            .layer(Extension(Arc::clone(&state.car_service)))
+            .layer(Extension(Arc::clone(&state.passenger_service)))
             .with_state(state);
 
         let listener = net::TcpListener::bind(format!("0.0.0.0:{}", config.port))

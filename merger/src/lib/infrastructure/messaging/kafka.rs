@@ -1,68 +1,66 @@
-use crate::{
-    application::ports::{MessagingPort, Offset, SubscriptionOptions},
-    domain::car::models::CreateCarEvent,
-};
+use crate::application::ports::{MessagingPort, Offset, SubscriptionOptions};
 use anyhow::Result;
-use apache_avro::{from_value, Schema};
+use apache_avro::from_value;
 use futures::StreamExt;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
-    producer::FutureProducer,
+    producer::{FutureProducer, FutureRecord},
     ClientConfig, Message,
 };
 use schema_registry_converter::{
     async_impl::{
-        avro::AvroDecoder,
-        schema_registry::{get_schema_by_subject, SrSettings},
+        avro::{AvroDecoder, AvroEncoder},
+        schema_registry::SrSettings,
     },
     schema_registry_common::SubjectNameStrategy,
 };
+use serde::Serialize;
 use std::{collections::HashMap, sync::Arc};
-use tracing::info;
 
 #[derive(Clone)]
 pub struct Kafka {
     #[allow(unused)]
     producer: Arc<FutureProducer>,
-    consumer: Arc<StreamConsumer>,
+
     brokers: String,
 }
 
-async fn get_schema_for_topic(topic: &str) -> Result<Schema> {
-    let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(topic.to_string(), false);
-    let sr_settings = SrSettings::new("http://localhost:8081".to_string());
-
-    let registered_schema = get_schema_by_subject(&sr_settings, &subject_name_strategy).await?;
-
-    let schema = Schema::parse_str(&registered_schema.schema)?;
-
-    Ok(schema)
-}
-
 impl Kafka {
-    pub fn new(brokers: String, group_id: String) -> Result<Self> {
+    pub fn new(brokers: String, _group_id: String) -> Result<Self> {
         let producer = ClientConfig::new()
             .set("bootstrap.servers", &brokers)
             .create::<FutureProducer>()?;
 
-        let consumer = ClientConfig::new()
-            .set("bootstrap.servers", &brokers)
-            .set("group.id", &group_id)
-            .set("enable.auto.commit", "true")
-            .set("auto.offset.reset", "earliest")
-            .create::<StreamConsumer>()?;
-
         Ok(Kafka {
             producer: Arc::new(producer),
-            consumer: Arc::new(consumer),
-            brokers: brokers,
+            brokers,
         })
     }
 }
 
 impl MessagingPort for Kafka {
-    async fn publish_message(&self, _topic: String, _message: String) -> anyhow::Result<()> {
-        todo!()
+    async fn publish_message<T: Serialize>(&self, topic: String, message: T) -> anyhow::Result<()> {
+        let producer = Arc::clone(&self.producer);
+
+        let sr_settings = SrSettings::new("http://localhost:8081".to_string());
+
+        let encoder = AvroEncoder::new(sr_settings);
+
+        let subject_name_strategy = SubjectNameStrategy::TopicNameStrategy(topic.clone(), false);
+        let encoded_message = encoder
+            .encode_struct(message, &subject_name_strategy)
+            .await?;
+
+        let record = FutureRecord::to(&topic)
+            .payload(&encoded_message)
+            .key("key");
+
+        producer
+            .send(record, rdkafka::util::Timeout::Never)
+            .await
+            .map_err(|(e, _)| anyhow::Error::new(e))?;
+
+        Ok(())
     }
 
     async fn subscribe<F, T, Fut>(
@@ -94,7 +92,6 @@ impl MessagingPort for Kafka {
         let sr_settings = SrSettings::new("http://localhost:8081".to_string());
         let avro_decoder = AvroDecoder::new(sr_settings);
 
-        let topic = topic.to_string();
         tokio::spawn(async move {
             while let Some(result) = consumer.stream().next().await {
                 match result {

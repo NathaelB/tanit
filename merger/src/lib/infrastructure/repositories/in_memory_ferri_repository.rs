@@ -37,6 +37,15 @@ impl FerriRepository for InMemoryFerriRepository {
     async fn find_by_id(&self, id: &str) -> anyhow::Result<Option<Ferri>> {
         let ferries = self.ferries.lock().await;
 
-        Ok(ferries.iter().find(|f| f.id == id).cloned())
+        let ferry = ferries.iter().find(|f| f.id == id);
+
+        Ok(ferry.cloned())
+    }
+
+    async fn delete_by_id(&self, id: &str) -> anyhow::Result<()> {
+        let mut ferries = self.ferries.lock().await;
+        ferries.retain(|f| f.id != id);
+
+        Ok(())
     }
 }

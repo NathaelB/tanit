@@ -16,4 +16,10 @@ pub trait PassengerRepository: Clone + Send + Sync + 'static {
         &self,
         ferry_id: String,
     ) -> impl Future<Output = anyhow::Result<i32>> + Send;
+    fn find_by_ferry_id(
+        &self,
+        ferry_id: &str,
+    ) -> impl Future<Output = anyhow::Result<Vec<Passenger>>> + Send;
+    fn delete_by_ferry_id(&self, ferry_id: &str)
+        -> impl Future<Output = anyhow::Result<()>> + Send;
 }

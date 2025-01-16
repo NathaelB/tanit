@@ -1,7 +1,8 @@
-use std::{env::consts::ARCH, sync::Arc};
+use std::sync::Arc;
 use tanit::{
     application::{
         http::{HttpServer, HttpServerConfig},
+        messaging::create_saver_schema,
         ports::{MessagingPort, Offset, SubscriptionOptions},
     },
     domain::{
@@ -16,7 +17,6 @@ use tanit::{
             service::FerriServiceImpl,
         },
         passenger::{
-            self,
             models::{CreatePassengerEvent, Passenger},
             ports::PassengerService,
             service::PassengerServiceImpl,
@@ -52,6 +52,21 @@ where
     };
 
     messaging
+        .subscribe("ferries", "merger", options, {
+            info!("listen to ferri");
+            move |e: CreateFerryEvent| {
+                let ferri_service = Arc::clone(&ferri_service);
+                async move {
+                    ferri_service.add_ferry(Ferri::from_event(e)).await?;
+                    Ok(())
+                }
+            }
+        })
+        .await?;
+
+    // attendre 5sec
+    //tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    messaging
         .subscribe(
             "cars",
             "merger",
@@ -70,19 +85,6 @@ where
                 }
             },
         )
-        .await?;
-
-    messaging
-        .subscribe("ferries", "merger", options, {
-            info!("listen to ferri");
-            move |e: CreateFerryEvent| {
-                let ferri_service = Arc::clone(&ferri_service);
-                async move {
-                    ferri_service.add_ferry(Ferri::from_event(e)).await?;
-                    Ok(())
-                }
-            }
-        })
         .await?;
 
     messaging
@@ -121,14 +123,24 @@ async fn main() -> Result<()> {
         "example_group".to_string(),
     )?);
 
-    let ferri_repository = InMemoryFerriRepository::new();
-    let ferri_service = Arc::new(FerriServiceImpl::new(ferri_repository));
+    create_saver_schema().await?;
 
     let car_repository = InMemoryCarRepository::default();
+    let ferri_repository = InMemoryFerriRepository::new();
     let passenger_repository = InMemoryPassengerRepository::default();
 
     let car_service = Arc::new(CarServiceImpl::new(car_repository));
-    let passenger_service = Arc::new(PassengerServiceImpl::new(passenger_repository));
+
+    let ferri_service = Arc::new(FerriServiceImpl::new(
+        ferri_repository,
+        Arc::clone(&car_service),
+        Arc::clone(&kafka),
+    ));
+
+    let passenger_service = Arc::new(PassengerServiceImpl::new(
+        passenger_repository,
+        Arc::clone(&ferri_service),
+    ));
 
     start_subscriptions(
         Arc::clone(&kafka),
