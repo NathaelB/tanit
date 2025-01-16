@@ -65,7 +65,7 @@ where
         let mut remaining_capacity = ferry_capacity;
 
         // Step 3: Create cars and passengers for each car
-        while remaining_capacity >= 6 {
+        while remaining_capacity >= 10 {
             // Create a car
             let car = self.car_service.create().await?;
             self.messaging_service
@@ -86,7 +86,7 @@ where
             }
 
             // Reduce the remaining capacity
-            remaining_capacity -= 6;
+            remaining_capacity -= 5;
         }
 
         // Step 4: Create passengers without cars to fill the remaining spots
