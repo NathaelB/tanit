@@ -1,0 +1,37 @@
+{
+    "name": "s3-parquet-connector",
+    "config": {
+      "connector.class": "io.confluent.connect.s3.S3SinkConnector",
+      "tasks.max": "1",
+      "topics": "ferries",
+      
+      "s3.bucket.name": "mon-bucket-minio",
+      "s3.region": "us-east-1",
+      "s3.part.size": "5242880",
+      
+      "store.url": "http://minio:9000",
+      "aws.access.key.id": "admin",
+      "aws.secret.access.key": "password123",
+      "s3.path.style.access": "true",
+  
+      "format.class": "io.confluent.connect.s3.format.parquet.ParquetFormat",
+  
+      "value.converter": "io.confluent.connect.avro.AvroConverter",
+      "value.converter.schemas.enable": "true",
+
+      "value.converter.schema.registry.url": "http://schema-registry:8081",
+      "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+      
+      "key.converter.schemas.enable": "false",
+      "storage.class": "io.confluent.connect.s3.storage.S3Storage",
+      "schema.generator.class": "io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator",
+  
+      "flush.size": "1",
+      "rotate.interval.ms": "10000",
+  
+      "partitioner.class": "io.confluent.connect.storage.partitioner.DefaultPartitioner",
+      "locale": "fr-FR",
+      "timezone": "Europe/Paris"
+    }
+  }
+  
