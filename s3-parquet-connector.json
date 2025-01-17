@@ -3,7 +3,7 @@
     "config": {
       "connector.class": "io.confluent.connect.s3.S3SinkConnector",
       "tasks.max": "1",
-      "topics": "ferries",
+      "topics": "saver",
       
       "s3.bucket.name": "mon-bucket-minio",
       "s3.region": "us-east-1",
@@ -21,7 +21,7 @@
 
       "value.converter.schema.registry.url": "http://schema-registry:8081",
       "key.converter": "org.apache.kafka.connect.storage.StringConverter",
-      
+
       "key.converter.schemas.enable": "false",
       "storage.class": "io.confluent.connect.s3.storage.S3Storage",
       "schema.generator.class": "io.confluent.connect.storage.hive.schema.DefaultSchemaGenerator",
