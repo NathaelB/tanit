@@ -33,7 +33,7 @@ use tanit::{
 };
 
 use anyhow::Result;
-use tracing::info;
+use tracing::{info, warn};
 
 pub async fn start_subscriptions<F, C, P>(
     messaging: Arc<Kafka>,
@@ -71,7 +71,7 @@ where
             "cars",
             "merger",
             SubscriptionOptions {
-                offset: Offset::Latests,
+                offset: Offset::Beginning,
             },
             {
                 info!("listen to cars");
@@ -92,7 +92,7 @@ where
             "passengers",
             "merger",
             SubscriptionOptions {
-                offset: Offset::Latests,
+                offset: Offset::Beginning,
             },
             {
                 info!("listen to passenger");
@@ -150,7 +150,7 @@ async fn main() -> Result<()> {
     )
     .await?;
 
-    let server_config = HttpServerConfig::new("3333".to_string());
+    let server_config = HttpServerConfig::new("2222".to_string());
 
     let http_server = HttpServer::new(
         server_config,

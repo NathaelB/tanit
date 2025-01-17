@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
 
     println!("Schemas created successfully");
 
-    let server_config = HttpServerConfig::new("3333".to_string());
+    let server_config = HttpServerConfig::new("2223".to_string());
     let http_server = HttpServer::new(server_config).await?;
 
     http_server.run().await?;
