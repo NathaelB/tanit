@@ -1,6 +1,9 @@
 version: '3'
 
 services:
+  # =======================
+  # Zookeeper
+  # =======================
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     container_name: zookeeper
@@ -10,39 +13,32 @@ services:
     ports:
       - "2181:2181"
 
-  schema-registry:
-    image: confluentinc/cp-schema-registry:latest
-    hostname: schema-registry
-    depends_on:
-      - kafka1
-      - kafka2
-    ports:
-      - "8081:8081"
-    environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
-      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
-      SCHEMA_REGISTRY_DEBUG: 'true'
-
+  # =======================
+  # Kafka Broker 1
+  # =======================
   kafka1:
     image: confluentinc/cp-kafka:latest
     hostname: kafka1
-    ports:
-      - "19092:19092"
+    container_name: kafka1
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      # Pour exposer deux types de listeners, interne et externe
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092,PLAINTEXT_INTERNAL://localhost:19092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+    ports:
+      - "19092:19092"
+
+  # =======================
+  # Kafka Broker 2
+  # =======================
   kafka2:
     image: confluentinc/cp-kafka:latest
     hostname: kafka2
-    ports:
-      - "29092:29092"
+    container_name: kafka2
     depends_on:
       - zookeeper
     environment:
@@ -51,14 +47,38 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+    ports:
+      - "29092:29092"
+
+  # =======================
+  # Schema Registry
+  # =======================
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    container_name: schema-registry
+    hostname: schema-registry
+    depends_on:
+      - kafka1
+      - kafka2
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
+      SCHEMA_REGISTRY_LISTENERS: http://schema-registry:8081
+      # On se connecte à kafka2, par ex. via PLAINTEXT://kafka2:9092
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka2:9092,PLAINTEXT_INTERNAL://localhost:29092
+      SCHEMA_REGISTRY_DEBUG: 'true'
+    ports:
+      - "8081:8081"
+
+  # =======================
+  # AKHQ (UI Web)
+  # =======================
   akhq:
     image: tchiotludo/akhq:latest
     container_name: akhq
     depends_on:
       - kafka1
       - kafka2
-    ports:
-      - "8080:8080"
     environment:
       AKHQ_CONFIGURATION: |
         akhq:
@@ -68,3 +88,70 @@ services:
                 bootstrap.servers: "kafka2:9092"
               schema-registry:
                 url: "http://schema-registry:8081"
+    ports:
+      - "8080:8080"
+
+  # =======================
+  # MinIO
+  # =======================
+  minio:
+    image: minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # =======================
+  # Kafka Connect
+  # =======================
+  kafka-connect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kafka-connect
+    depends_on:
+      - kafka1
+      - kafka2
+      - minio
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "kafka1:9092,kafka2:9092"
+      CONNECT_GROUP_ID: "kafka-connect-group"
+      
+      # Topics internes
+      CONNECT_CONFIG_STORAGE_TOPIC: "_connect-configs"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 2
+      CONNECT_OFFSET_STORAGE_TOPIC: "_connect-offsets"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 2
+      CONNECT_STATUS_STORAGE_TOPIC: "_connect-status"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 2
+
+      # Convertisseurs
+      CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+
+
+      # Plugin path (pour le S3 Connector)
+      CONNECT_PLUGIN_PATH: "/usr/share/confluent-hub-components"
+
+      # REST
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: 8083
+
+      # Log Level
+      CONNECT_LOG4J_LOGGERS: "org.reflections=ERROR"
+
+volumes:
+  minio-data:
